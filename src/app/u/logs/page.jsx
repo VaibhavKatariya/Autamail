@@ -13,18 +13,15 @@ export default function EmailLogs() {
   const [user, loading] = useAuthState(auth);
   const router = useRouter();
 
-  // ✅ Remove unnecessary state (`checkingAuth`)
   useEffect(() => {
     if (!loading && !user) {
       router.push("/");
     }
   }, [user, loading, router]);
 
-  // ✅ Prevent fetching data until authentication is confirmed
-  const emailLogsQuery = query(collection(db, "email_logs"), orderBy("timestamp", "desc"));
+  const emailLogsQuery = query(collection(db, "sentEmails"), orderBy("sentAt", "desc"));
   const [logsSnapshot, logsLoading, error] = useCollection(emailLogsQuery);
 
-  // ✅ Ensure hooks always run in the same order
   if (loading || logsLoading) {
     return <div className="flex justify-center items-center h-screen">Loading...</div>;
   }
@@ -51,27 +48,23 @@ export default function EmailLogs() {
               <TableRow>
                 <TableHead>Sender</TableHead>
                 <TableHead>Template</TableHead>
-                <TableHead>Companies</TableHead>
+                <TableHead>Recipients</TableHead>
                 <TableHead>Date</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {logs.map((log) => (
                 <TableRow key={log.id}>
-                  <TableCell>
-                    {log.senderName || "Unknown"} ({log.senderEmail})
-                  </TableCell>
-                  <TableCell>{log.templateUsed}</TableCell>
+                  <TableCell>{log.emails[0]?.sentBy || "Unknown"}</TableCell>
+                  <TableCell>{log.emails[0]?.templateUsed || "N/A"}</TableCell>
                   <TableCell>
                     <ul>
-                      {log.companies.map((company, index) => (
-                        <li key={index}>
-                          {company.name} ({company.email})
-                        </li>
+                      {log.emails.map((email, index) => (
+                        <li key={index}>{email.companyName} ({email.email})</li>
                       ))}
                     </ul>
                   </TableCell>
-                  <TableCell>{log.timestamp?.toDate().toLocaleString()}</TableCell>
+                  <TableCell>{new Date(log.sentAt.toDate()).toLocaleString()}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

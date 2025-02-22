@@ -10,13 +10,11 @@ import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 import { ReloadIcon } from "@radix-ui/react-icons";
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogAction } from "@/components/ui/alert-dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { db } from "@/lib/firebase"; // Import Firestore instance
+import { collection, addDoc } from "firebase/firestore";
+import { useAuthState } from "react-firebase-hooks/auth";
+import { auth } from "@/lib/firebase"; // Import Firebase auth
 
 export default function SponsorEmailDashboard({ fromEmail }) {
   const [template, setTemplate] = useState("");
@@ -24,9 +22,17 @@ export default function SponsorEmailDashboard({ fromEmail }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const formId = "10amvbxLmUDHbvVKVck3uleKC2sABzfGTbJL4GN0o2_M";
+  const [user] = useAuthState(auth); // Get the logged-in user
 
   const handleBulkSubmit = async () => {
+    if (!user) {
+      toast.error("You must be logged in to send emails.");
+      return;
+    }
+
     setIsSubmitting(true);
+
+    const sentEmails = [];
 
     for (const entry of bulkEntries) {
       const formData = new FormData();
@@ -41,16 +47,39 @@ export default function SponsorEmailDashboard({ fromEmail }) {
           body: formData,
           mode: "no-cors",
         });
+
+        // Add successful email to the list
+        sentEmails.push({
+          companyName: entry.name,
+          email: entry.email,
+          templateUsed: template,
+          sentBy: user.email, // Store the sender's email
+          timestamp: new Date().toISOString(),
+        });
       } catch (error) {
         toast.error(`Failed to send email to ${entry.name} (${entry.email})`);
-        console.error('Error:', error);
+        console.error("Error:", error);
+      }
+    }
+
+    // Save the sent emails list to Firestore
+    if (sentEmails.length > 0) {
+      try {
+        await addDoc(collection(db, "sentEmails"), {
+          emails: sentEmails,
+          sentAt: new Date(),
+        });
+        toast.success("Emails recorded in Firestore.");
+      } catch (error) {
+        console.error("Error storing email data in Firestore:", error);
+        toast.error("Failed to save email records.");
       }
     }
 
     setBulkEntries([]);
     setTemplate("");
     setIsDialogOpen(true);
-    toast.success("Email sent successfully!");
+    toast.success("Emails sent successfully!");
     setIsSubmitting(false);
   };
 
@@ -73,7 +102,7 @@ export default function SponsorEmailDashboard({ fromEmail }) {
   };
 
   return (
-    <div className="flex  items-center justify-center w-full h-[calc(100vh-10vh)]  p-4">
+    <div className="flex items-center justify-center w-full h-[calc(100vh-10vh)] p-4">
       <Card className="w-full max-w-xl mx-auto">
         <CardHeader>
           <CardTitle className="text-center">Email Dashboard</CardTitle>
@@ -109,10 +138,10 @@ export default function SponsorEmailDashboard({ fromEmail }) {
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select a template" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="A">Sponsor's mail</SelectItem>
-                    <SelectItem value="B">Chief's mail</SelectItem>
-                    <SelectItem value="C">Participant's mail</SelectItem>
+                  <SelectContent className="cursor-pointer">
+                    <SelectItem className="cursor-pointer" value="A">Sponsor's mail</SelectItem>
+                    <SelectItem className="cursor-pointer" value="B">Chief's mail</SelectItem>
+                    <SelectItem className="cursor-pointer" value="C">Participant's mail</SelectItem>
                   </SelectContent>
                 </Select>
                 <Button onClick={handleBulkSubmit} disabled={isSubmitting} className="w-full">
