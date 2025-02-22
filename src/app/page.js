@@ -62,6 +62,7 @@ export default function HomePage() {
   }
 
   return (
+    
     <div className="flex min-h-screen items-center justify-center bg-black">
       <Card className="w-[350px] bg-zinc-900 text-white border-zinc-800">
         <CardHeader>
