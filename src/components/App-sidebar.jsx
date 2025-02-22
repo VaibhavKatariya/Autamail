@@ -27,9 +27,13 @@ const data = {
       url: "/",
       items: [
         {
+          title: "Dashboard",
+          url: "/u/dashboard",
+        },
+        {
           title: "Logs",
-          url: "/logs",
-        }
+          url: "/u/logs",
+        },
       ],
     },
   ],

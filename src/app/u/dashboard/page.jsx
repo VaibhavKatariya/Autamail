@@ -1,9 +1,9 @@
 import React from 'react'
-import NormalDash from './normalDash'
+import SponsorEmailDashboard from '@/components/email'
 
 const page = () => {
   return (
-    <NormalDash/>
+    <SponsorEmailDashboard/>
   )
 }
 

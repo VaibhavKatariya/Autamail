@@ -16,7 +16,7 @@ export default function HomePage() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
-        router.push("/dashboard");
+        router.push("/u/dashboard");
       } else {
         setAuthChecking(false);
       }
