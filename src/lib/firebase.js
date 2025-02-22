@@ -4,12 +4,13 @@ import { getFirestore } from "firebase/firestore"
 import { getDatabase } from "firebase/database";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyD7CXwBAen72cnja7L2hr0jRig88-u8FYU",
-  authDomain: "supplysync-gdsc.firebaseapp.com",
-  projectId: "supplysync-gdsc",
-  storageBucket: "supplysync-gdsc.firebasestorage.app",
-  messagingSenderId: "158982485508",
-  appId: "1:158982485508:web:22fad985f2ab30f7dda751"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
 // Initialize Firebase
