@@ -27,17 +27,9 @@ const data = {
       url: "/",
       items: [
         {
-          title: "Email Section😁",
-          url: "/emails",
-        },
-        {
-          title: "Admin Section🤓",
-          url: "/admin",
-        },
-        {
-          title: "Access Section🙄",
-          url: "/access",
-        },
+          title: "Logs",
+          url: "/logs",
+        }
       ],
     },
   ],
