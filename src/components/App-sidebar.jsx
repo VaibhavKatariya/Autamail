@@ -31,6 +31,10 @@ const data = {
           url: "/u/dashboard",
         },
         {
+          title: "users",
+          url: "/u/users",
+        },
+        {
           title: "Logs",
           url: "/u/logs",
         },
