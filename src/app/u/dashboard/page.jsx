@@ -42,7 +42,7 @@ const Page = () => {
     return <div className="flex justify-center items-center h-screen">Loading...</div>;
   }
 
-  return isAdmin ? <AdminDashboard /> : <SponsorEmailDashboard />;
+  return isAdmin ? <AdminDashboard /> : <SponsorEmailDashboard fromEmail={user.email}/>;
 };
 
 export default Page;

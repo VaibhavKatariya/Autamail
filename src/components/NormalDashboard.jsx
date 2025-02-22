@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-export default function SponsorEmailDashboard() {
+export default function SponsorEmailDashboard({ fromEmail }) {
   const [template, setTemplate] = useState("");
   const [bulkEntries, setBulkEntries] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -33,7 +33,8 @@ export default function SponsorEmailDashboard() {
       formData.append("entry.852843744", entry.name);
       formData.append("entry.1045781291", entry.email);
       formData.append("entry.837450281", template);
-      
+      formData.append("entry.1580046483", fromEmail);
+
       try {
         await fetch(`https://docs.google.com/forms/d/${formId}/formResponse`, {
           method: "POST",
@@ -87,22 +88,22 @@ export default function SponsorEmailDashboard() {
                     <Button onClick={() => removeBulkEntry(index)} className="absolute top-2 right-2" variant="outline">
                       <Trash2 size={16} />
                     </Button>
-                    <Label>Company Name</Label>
+                    <Label>Company/Person Name</Label>
                     <Input
                       value={entry.name}
                       onChange={(e) => updateBulkEntry(index, "name", e.target.value)}
-                      placeholder="Company Name"
+                      placeholder="Company/Person Name"
                     />
                     <Label>Email</Label>
                     <Input
                       value={entry.email}
                       onChange={(e) => updateBulkEntry(index, "email", e.target.value)}
                       type="email"
-                      placeholder="Company@example.com"
+                      placeholder="Person@example.com"
                     />
                   </div>
                 ))}
-                <Button onClick={addBulkEntry} className="w-full">Add Company</Button>
+                <Button onClick={addBulkEntry} className="w-full">Add Company/Person</Button>
                 <Label>Select Email Template</Label>
                 <Select value={template} onValueChange={setTemplate}>
                   <SelectTrigger className="w-full">
