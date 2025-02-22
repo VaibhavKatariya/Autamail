@@ -1,7 +1,7 @@
-'use client'
+'use client';
 import * as React from "react";
+import { useRouter } from "next/navigation"; // Import useRouter
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-
 import { VersionSwitcher } from "@/components/version-switcher";
 import {
   Sidebar,
@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/sidebar";
 import { NavUser } from "./nav-user";
 
-// This is sample data.
+// Sample Data
 const data = {
   versions: [],
   navMain: [
@@ -39,18 +39,16 @@ const data = {
   ],
 };
 
-export function AppSidebar({
-  authUser = { displayName: "", email: "", photo: "" },
-  onLogout,
-  ...props
-}) {
+export function AppSidebar({ authUser = { displayName: "", email: "", photo: "" }, onLogout, ...props }) {
+  const router = useRouter(); // Initialize the router
+
   return (
     <Sidebar {...props}>
       <SidebarHeader>
         <VersionSwitcher versions={data.versions} defaultVersion={data.versions[0]} />
       </SidebarHeader>
       <SidebarContent>
-        {/* We create a SidebarGroup for each parent. */}
+        {/* Sidebar Navigation */}
         {data.navMain.map((item) => (
           <SidebarGroup key={item.title}>
             <SidebarGroupLabel>{item.title}</SidebarGroupLabel>
@@ -59,7 +57,7 @@ export function AppSidebar({
                 {item.items.map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild isActive={item.isActive}>
-                      <button onClick={() => window.location.href = item.url}>{item.title}</button>
+                      <button onClick={() => router.push(item.url)}>{item.title}</button>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
@@ -69,7 +67,7 @@ export function AppSidebar({
         ))}
       </SidebarContent>
       <SidebarFooter>
-        <NavUser/>
+        <NavUser />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
