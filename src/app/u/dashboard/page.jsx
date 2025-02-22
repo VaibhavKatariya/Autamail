@@ -1,33 +1,48 @@
 'use client'
-import React from 'react'
-import SponsorEmailDashboard from '@/components/email'
+import React, { useEffect, useState } from 'react';
+import SponsorEmailDashboard from '@/components/NormalDashboard';
+import AdminDashboard from '@/components/admin-dashboard';
 import { useAuthState } from "react-firebase-hooks/auth";
-import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { auth } from "@/lib/firebase";
+import { auth, rtdb } from "@/lib/firebase";
+import { ref, get } from "firebase/database";
 
-const page = () => {
-
+const Page = () => {
   const [user, loading] = useAuthState(auth);
   const router = useRouter();
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    if (!loading) {
-      if (!user) {
-        router.push("/");
-      } else {
+    const checkAdminStatus = async () => {
+      if (!loading && user) {
+        try {
+          const adminRef = ref(rtdb, "admins");
+          const snapshot = await get(adminRef);
+
+          if (snapshot.exists()) {
+            const adminList = snapshot.val(); // Assuming admin list is an array of emails
+            if (adminList.includes(user.email)) {
+              setIsAdmin(true);
+            }
+          }
+        } catch (err) {
+          console.error("Error fetching admin data:", err);
+        } 
         setCheckingAuth(false);
+      } else if (!loading && !user) {
+        router.push("/");
       }
-    }
+    };
+
+    checkAdminStatus();
   }, [user, loading, router]);
 
   if (checkingAuth) {
     return <div className="flex justify-center items-center h-screen">Loading...</div>;
   }
-  return (
-    <SponsorEmailDashboard />
-  )
-}
 
-export default page
+  return isAdmin ? <AdminDashboard /> : <SponsorEmailDashboard />;
+};
+
+export default Page;
