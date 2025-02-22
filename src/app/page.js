@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { auth } from "@/lib/firebase";
+import { auth, rtdb } from "@/lib/firebase";
 import { useSignInWithGoogle } from "react-firebase-hooks/auth";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, deleteUser, signOut } from "firebase/auth";
+import { ref, get } from "firebase/database";
 
 export default function HomePage() {
   const [signInWithGoogle, user, loading, error] = useSignInWithGoogle(auth);
@@ -14,13 +15,33 @@ export default function HomePage() {
   const router = useRouter();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
-        router.push("/u/dashboard");
-      } else {
-        setAuthChecking(false);
+        const userEmail = currentUser.email;
+        const usersRef = ref(rtdb, "users");
+
+        try {
+          const snapshot = await get(usersRef);
+          console.log(snapshot);
+          if (snapshot.exists()) {
+            const usersList = snapshot.val();
+            if (usersList.includes(userEmail)) {
+              // Email is in the allowed users list
+              router.push("/u/dashboard");
+            } else {
+              // Email not found → Delete the user and sign them out
+              await signOut(auth);
+              await deleteUser(currentUser);
+              console.warn("Access denied. User removed.");
+            }
+          }
+        } catch (err) {
+          console.error("Error checking user access:", err);
+        }
       }
+      setAuthChecking(false);
     });
+
     return () => unsubscribe();
   }, [router]);
 
