@@ -117,7 +117,7 @@ export default function UsersPage() {
             Are you sure you want to remove <strong>{selectedUser}</strong>?
           </AlertDialogDescription>
           <div className="flex justify-end space-x-2">
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
             <AlertDialogAction onClick={handleDeleteUser}>Remove</AlertDialogAction>
           </div>
         </AlertDialogContent>
