@@ -7,11 +7,23 @@ import {
     SidebarProvider,
     SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { AuthProvider } from "@/context/AuthContext";
+import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { useRouter } from "next/navigation";
 
 export default function RootLayout({ children }) {
+    const { user, loading, isAdmin, checkingAuth } = useAuth();
+    const router = useRouter();
+
+  if (loading || checkingAuth) {
+    return <div className="flex justify-center items-center h-screen">Loading...</div>;
+  }
+
+  if (!user) {
+    router.push("/");
+    return <div className="flex justify-center items-center h-screen">Redirecting...</div>;
+  }
     return (
-        <div className="dark dark:text-white">
+        <div className="dark text-white">
             <SidebarProvider>
                 <AppSidebar />
                 <SidebarInset>

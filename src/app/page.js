@@ -4,10 +4,18 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction } from "@/components/ui/alert-dialog";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 import { auth, rtdb } from "@/lib/firebase";
 import { useSignInWithGoogle } from "react-firebase-hooks/auth";
-import { onAuthStateChanged, deleteUser, signOut } from "firebase/auth";
+import { onAuthStateChanged, deleteUser, signOut, getIdTokenResult, getIdToken } from "firebase/auth";
 import { ref, get } from "firebase/database";
 
 export default function HomePage() {
@@ -19,17 +27,36 @@ export default function HomePage() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
-        const userEmail = currentUser.email;
-        const usersRef = ref(rtdb, "users");
-
         try {
+          const tokenResult = await getIdTokenResult(currentUser);
+          const role = tokenResult.claims.role || null; // Check if user already has a role
+
+          if (role === "admin") {
+            // If the user is already an admin, let them in
+            router.push("/u/dashboard");
+            return;
+          }
+
+          const usersRef = ref(rtdb, "users");
           const snapshot = await get(usersRef);
+
           if (snapshot.exists()) {
             const usersList = snapshot.val();
-            if (usersList.includes(userEmail)) {
+            if (usersList.includes(currentUser.email)) {
+              if (!role) {
+                // Assign 'member' role ONLY if the user has no role
+                await fetch("/api/setCustomClaim", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ email: currentUser.email, role: "member" }),
+                });
+
+                // Refresh token to get updated claims
+                await getIdToken(currentUser, true);
+              }
+
               router.push("/u/dashboard");
             } else {
-              // ❌ Show alert if user is not approved
               setShowAlert(true);
               await signOut(auth);
               await deleteUser(currentUser);
