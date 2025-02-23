@@ -64,32 +64,38 @@ export default function EmailLogs() {
           <CardTitle className="text-center">Email Logs</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Sender</TableHead>
-                <TableHead>Template</TableHead>
-                <TableHead>Recipients</TableHead>
-                <TableHead>Date</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {logs.map((log) => (
-                <TableRow key={log.id}>
-                  <TableCell>{log.sentBy || "Unknown"}</TableCell>
-                  <TableCell>{log.templateUsed || "N/A"}</TableCell>
-                  <TableCell>
-                    <ul>
-                      <li>
-                        {log.companyName} ({log.email})
-                      </li>
-                    </ul>
-                  </TableCell>
-                  <TableCell>{new Date(log.timestamp).toLocaleString()}</TableCell>
+          {logs.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Sender</TableHead>
+                  <TableHead>Template</TableHead>
+                  <TableHead>Recipients</TableHead>
+                  <TableHead>Date</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {logs.map((log) => (
+                  <TableRow key={log.id}>
+                    <TableCell>{log.sentBy || "Unknown"}</TableCell>
+                    <TableCell>{log.templateUsed || "N/A"}</TableCell>
+                    <TableCell>
+                      <ul>
+                        <li>
+                          {log.companyName} ({log.email})
+                        </li>
+                      </ul>
+                    </TableCell>
+                    <TableCell>{new Date(log.timestamp).toLocaleString()}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="text-center text-gray-500 p-4">
+              <p>Wow, look at that! A whole lot of... NOTHING. Maybe if you actually sent some emails instead of just chilling, this wouldn&apos;t be empty ¯\_(ツ)_/¯</p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
