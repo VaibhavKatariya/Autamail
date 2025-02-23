@@ -18,6 +18,7 @@ import {
 
 export default function AdminDashboard() {
   const [email, setEmail] = useState("");
+  const [role, setRole] = useState("member"); // Default role
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMessage, setDialogMessage] = useState("");
@@ -51,15 +52,18 @@ export default function AdminDashboard() {
       const snapshot = await get(usersRef);
       let usersList = snapshot.exists() ? snapshot.val() : [];
 
-      if (usersList.includes(email)) {
+      // Check if user already exists
+      if (usersList.some(user => user.email === email)) {
         setDialogMessage("User already exists in the list.");
         setDialogType("error");
       } else {
-        usersList.push(email);
+        // Add new user object
+        usersList.push({ email, role });
         await set(usersRef, usersList);
         setDialogMessage("User added successfully!");
         setDialogType("success");
         setEmail("");
+        setRole("member"); // Reset role to default
       }
     } catch (error) {
       console.error("Error adding user:", error);
@@ -72,10 +76,10 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="dark:text-white flex items-center justify-center w-full h-screen p-4">
+    <div className="dark:text-white flex items-center justify-center w-full p-4">
       <Card className="w-full max-w-md mx-auto">
         <CardHeader>
-          <CardTitle className="text-center">Admin Dashboard</CardTitle>
+          <CardTitle className="text-center">Add a user</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -86,6 +90,15 @@ export default function AdminDashboard() {
               type="email"
               placeholder="user@example.com"
             />
+            <Label>User Role</Label>
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              className="border bg-black text-white border-gray-300 rounded-md p-2 w-full"
+            >
+              <option value="member">Member</option>
+              <option value="admin">Admin</option>
+            </select>
             <Button onClick={handleAddUser} disabled={isSubmitting} className="w-full">
               {isSubmitting ? "Adding..." : "Add User"}
             </Button>
@@ -105,4 +118,5 @@ export default function AdminDashboard() {
       </AlertDialog>
     </div>
   );
+
 }

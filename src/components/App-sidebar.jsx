@@ -35,10 +35,6 @@ export function AppSidebar({ authUser = { displayName: "", email: "", photo: "" 
             url: "/u/dashboard",
           },
           {
-            title: "Users",
-            url: "/u/users",
-          },
-          {
             title: "Logs",
             url: "/u/logs",
           },
@@ -52,14 +48,24 @@ export function AppSidebar({ authUser = { displayName: "", email: "", photo: "" 
     data.navMain[0].items.push(
       {
         title: "Manage Users",
-        url: "/u/manageUsers",
+        url: "/admin/manageUsers",
       },
       {
         title: "Custom Claim",
-        url: "/u/customClaim",
+        url: "/admin/customClaim",
       }
     );
   }
+
+  const handleNavClick = (url) => {
+    // Check if the user is admin and trying to access a user-specific route
+    if (isAdmin && url.startsWith('/u/')) {
+      const adminUrl = url.replace('/u/', '/admin/');
+      router.push(adminUrl); // Redirect to admin route
+    } else {
+      router.push(url); // Normal navigation for non-admin or other routes
+    }
+  };
 
   return (
     <Sidebar {...props}>
@@ -76,7 +82,7 @@ export function AppSidebar({ authUser = { displayName: "", email: "", photo: "" 
                 {item.items.map((navItem) => (
                   <SidebarMenuItem key={navItem.title}>
                     <SidebarMenuButton asChild>
-                      <button onClick={() => router.push(navItem.url)}>{navItem.title}</button>
+                      <button onClick={() => handleNavClick(navItem.url)}>{navItem.title}</button>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}

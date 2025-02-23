@@ -10,12 +10,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
-  AlertDialogTrigger,
   AlertDialogContent,
   AlertDialogTitle,
   AlertDialogDescription,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
+import AdminDashboard from "@/components/admin-dashboard";
 
 export default function UsersPage() {
   const { user, loading, checkingAuth } = useAuth();
@@ -43,10 +43,10 @@ export default function UsersPage() {
     if (!selectedUser) return;
 
     try {
-      const updatedUsers = users.filter((email) => email !== selectedUser);
+      const updatedUsers = users.filter((user) => user.email !== selectedUser.email);
       await set(ref(rtdb, "users"), updatedUsers);
 
-      setAlertMessage(`User ${selectedUser} removed successfully!`);
+      setAlertMessage(`User ${selectedUser.email} removed successfully!`);
       setIsError(false);
     } catch (error) {
       console.error("Error removing user:", error);
@@ -69,47 +69,52 @@ export default function UsersPage() {
   }
 
   return (
-    <div className="flex items-center justify-center w-full h-[calc(100vh-10vh)] p-4">
-      <Card className="w-full max-w-4xl mx-auto">
-        <CardHeader>
-          <CardTitle className="text-center">Users</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Email</TableHead>
-                <TableHead>Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.map((email, index) => (
-                <TableRow key={index}>
-                  <TableCell>{email}</TableCell>
-                  <TableCell>
-                    <Button
-                      variant="destructive"
-                      onClick={() => {
-                        setSelectedUser(email);
-                        setDialogOpen(true);
-                      }}
-                    >
-                      Remove
-                    </Button>
-                  </TableCell>
+    <div className="flex flex-col items-center justify-start p-4 space-y-4">
+      <AdminDashboard />
+      <div className="flex items-center justify-center w-full">
+        <Card className="w-full max-w-4xl">
+          <CardHeader>
+            <CardTitle className="text-center">Users List</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Action</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+              </TableHeader>
+              <TableBody>
+                {users.map((user, index) => (
+                  <TableRow key={index}>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>{user.role}</TableCell>
+                    <TableCell>
+                      <Button
+                        variant="destructive"
+                        onClick={() => {
+                          setSelectedUser(user);
+                          setDialogOpen(true);
+                        }}
+                      >
+                        Remove
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Confirmation Dialog */}
       <AlertDialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <AlertDialogContent>
           <AlertDialogTitle>Confirm Deletion</AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to remove <strong>{selectedUser}</strong>?
+            Are you sure you want to remove <strong>{selectedUser?.email}</strong>?
           </AlertDialogDescription>
           <div className="flex justify-end space-x-2">
             <Button onClick={() => setDialogOpen(false)}>Cancel</Button>

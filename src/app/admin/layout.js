@@ -30,8 +30,8 @@ export default function RootLayout({ children }) {
     if (!user) {
         router.push("/");
         return <div className="flex justify-center items-center h-screen">Redirecting...</div>;
-    } else if (isAdmin) {
-        router.push("/admin/dashboard");
+    } else if (!isAdmin) {
+        router.push("/u/dashboard");
         return <div className="flex justify-center items-center h-screen">Redirecting...</div>;
     }
 

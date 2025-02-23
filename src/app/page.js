@@ -33,22 +33,26 @@ export default function HomePage() {
 
           if (role === "admin") {
             // If the user is already an admin, let them in
-            router.push("/u/dashboard");
+            router.push("/admin/dashboard");
             return;
           }
 
-          const usersRef = ref(rtdb, "users");
+          const usersRef = ref(rtdb, "users"); // Reference to the users array
           const snapshot = await get(usersRef);
 
           if (snapshot.exists()) {
             const usersList = snapshot.val();
-            if (usersList.includes(currentUser.email)) {
+            const userData = usersList.find((user) => user.email === currentUser.email);
+
+            if (userData) {
+              const userRole = userData.role;
+
               if (!role) {
-                // Assign 'member' role ONLY if the user has no role
+                // Assign role ONLY if the user has no role
                 await fetch("/api/setCustomClaim", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ email: currentUser.email, role: "member" }),
+                  body: JSON.stringify({ email: currentUser.email, role: userRole }),
                 });
 
                 // Refresh token to get updated claims
@@ -57,6 +61,7 @@ export default function HomePage() {
 
               router.push("/u/dashboard");
             } else {
+              // User does not exist in the database
               setShowAlert(true);
               await signOut(auth);
               await deleteUser(currentUser);
