@@ -103,7 +103,7 @@ export default function HelpPage() {
         <section className="text-center mt-16">
           <h2 className="text-2xl font-semibold mb-4">Credits</h2>
           <p className="text-gray-400">
-          his project was made possible by the hard work and dedication of our talented team.
+          This project was made possible by the hard work and dedication of our talented team.
           </p>
         </section>
       </main>
