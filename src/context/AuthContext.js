@@ -2,8 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useAuthState } from "react-firebase-hooks/auth";
-import { auth, rtdb } from "@/lib/firebase";
-import { ref, get } from "firebase/database";
+import { auth } from "@/lib/firebase";
 
 const AuthContext = createContext(null);
 
@@ -13,23 +12,21 @@ export const AuthProvider = ({ children }) => {
   const [checkingAuth, setCheckingAuth] = useState(true);
 
   useEffect(() => {
-    const checkAdminStatus = async () => {
+    const checkUserRole = async () => {
       if (user) {
         try {
-          const adminRef = ref(rtdb, "admins");
-          const snapshot = await get(adminRef);
-          if (snapshot.exists()) {
-            const adminList = snapshot.val();
-            setIsAdmin(adminList.includes(user.email));
-          }
+          const tokenResult = await user.getIdTokenResult(true); // Force refresh token
+          const role = tokenResult.claims.role; // Get role from custom claims
+          
+          setIsAdmin(role === "admin"); // Set isAdmin based on role
         } catch (err) {
-          console.error("Error fetching admin data:", err);
+          console.error("Error fetching user claims:", err);
         }
       }
       setCheckingAuth(false);
     };
 
-    checkAdminStatus();
+    checkUserRole();
   }, [user]);
 
   return (
