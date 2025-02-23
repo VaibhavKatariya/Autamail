@@ -23,9 +23,22 @@ export default function AdminDashboard() {
   const [dialogMessage, setDialogMessage] = useState("");
   const [dialogType, setDialogType] = useState("success"); // "success" or "error"
 
+  // Function to validate email format
+  const validateEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
   const handleAddUser = async () => {
     if (!email) {
       setDialogMessage("Please enter an email address.");
+      setDialogType("error");
+      setDialogOpen(true);
+      return;
+    }
+
+    if (!validateEmail(email)) {
+      setDialogMessage("Invalid email format. Please enter a valid email.");
       setDialogType("error");
       setDialogOpen(true);
       return;
