@@ -28,7 +28,7 @@ const Page = () => {
           }
         } catch (err) {
           console.error("Error fetching admin data:", err);
-        } 
+        }
         setCheckingAuth(false);
       } else if (!loading && !user) {
         router.push("/");
@@ -42,7 +42,20 @@ const Page = () => {
     return <div className="flex justify-center items-center h-screen">Loading...</div>;
   }
 
-  return isAdmin ? <AdminDashboard /> : <SponsorEmailDashboard fromEmail={user?.email}/>;
+  return (
+    <>
+      <div className='dark:text-white flex flex-col md:flex-row items-center justify-center w-full h-screen p-4'>
+        {isAdmin ? (
+          <>
+            <AdminDashboard />
+            <SponsorEmailDashboard fromEmail={user?.email} />
+          </>
+        ) : (
+          <SponsorEmailDashboard fromEmail={user?.email} />
+        )}
+      </div>
+    </>
+  );
 };
 
 export default Page;

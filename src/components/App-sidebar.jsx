@@ -1,7 +1,6 @@
 'use client';
 import * as React from "react";
-import { useRouter } from "next/navigation"; // Import useRouter
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useRouter } from "next/navigation";
 import { VersionSwitcher } from "@/components/version-switcher";
 import {
   Sidebar,
