@@ -5,20 +5,55 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction } from "@/components/ui/alert-dialog";
-import { useAuth } from "@/context/AuthContext";
+import { auth, rtdb } from "@/lib/firebase";
+import { useSignInWithGoogle } from "react-firebase-hooks/auth";
+import { onAuthStateChanged, deleteUser, signOut } from "firebase/auth";
+import { ref, get } from "firebase/database";
 
 export default function HomePage() {
-  const { user, loading, signInWithGoogle } = useAuth(); // Use AuthContext
+  const [signInWithGoogle, user, loading, error] = useSignInWithGoogle(auth);
+  const [authChecking, setAuthChecking] = useState(true);
   const [showAlert, setShowAlert] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
-    if (user) {
-      router.push("/u/dashboard");
-    }
-  }, [user, router]);
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+        const userEmail = currentUser.email;
+        const usersRef = ref(rtdb, "users");
 
-  if (loading) {
+        try {
+          const snapshot = await get(usersRef);
+          if (snapshot.exists()) {
+            const usersList = snapshot.val();
+            if (usersList.includes(userEmail)) {
+              router.push("/u/dashboard");
+            } else {
+              // ❌ Show alert if user is not approved
+              setShowAlert(true);
+              await signOut(auth);
+              await deleteUser(currentUser);
+            }
+          }
+        } catch (err) {
+          console.error("Error checking user access:", err);
+        }
+      }
+      setAuthChecking(false);
+    });
+
+    return () => unsubscribe();
+  }, [router]);
+
+  const handleGoogleSignIn = async () => {
+    try {
+      await signInWithGoogle();
+    } catch (err) {
+      console.error("Google Sign-In Error:", err);
+    }
+  };
+
+  if (authChecking) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-black text-white">
         Checking authentication...
@@ -54,11 +89,12 @@ export default function HomePage() {
             <Button
               className="w-full bg-white hover:bg-zinc-200 text-black"
               size="lg"
-              onClick={signInWithGoogle}
+              onClick={handleGoogleSignIn}
               disabled={loading}
             >
               {loading ? "Signing in..." : "Login with Google"}
             </Button>
+            {error && <p className="text-red-500 text-center mt-2">{error.message}</p>}
           </CardContent>
         </Card>
       </div>
