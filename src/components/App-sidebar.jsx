@@ -1,4 +1,4 @@
-'use client';
+"use client";
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { VersionSwitcher } from "@/components/version-switcher";
@@ -16,34 +16,50 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { NavUser } from "./nav-user";
-
-// Sample Data
-const data = {
-  versions: [],
-  navMain: [
-    {
-      title: "Sending in pace",
-      url: "/",
-      items: [
-        {
-          title: "Dashboard",
-          url: "/u/dashboard",
-        },
-        {
-          title: "users",
-          url: "/u/users",
-        },
-        {
-          title: "Logs",
-          url: "/u/logs",
-        },
-      ],
-    },
-  ],
-};
+import { useAuth } from "@/context/AuthContext";
 
 export function AppSidebar({ authUser = { displayName: "", email: "", photo: "" }, onLogout, ...props }) {
-  const router = useRouter(); // Initialize the router
+  const router = useRouter();
+  const { user, loading, isAdmin, checkingAuth } = useAuth();
+
+  // Sample Data
+  const data = {
+    versions: [],
+    navMain: [
+      {
+        title: "Sending in pace",
+        url: "/",
+        items: [
+          {
+            title: "Dashboard",
+            url: "/u/dashboard",
+          },
+          {
+            title: "Users",
+            url: "/u/users",
+          },
+          {
+            title: "Logs",
+            url: "/u/logs",
+          },
+        ],
+      },
+    ],
+  };
+
+  // Add admin-only pages if user is admin
+  if (isAdmin) {
+    data.navMain[0].items.push(
+      {
+        title: "Manage Users",
+        url: "/u/manageUsers",
+      },
+      {
+        title: "Custom Claim",
+        url: "/u/customClaim",
+      }
+    );
+  }
 
   return (
     <Sidebar {...props}>
@@ -57,10 +73,10 @@ export function AppSidebar({ authUser = { displayName: "", email: "", photo: "" 
             <SidebarGroupLabel>{item.title}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {item.items.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild isActive={item.isActive}>
-                      <button onClick={() => router.push(item.url)}>{item.title}</button>
+                {item.items.map((navItem) => (
+                  <SidebarMenuItem key={navItem.title}>
+                    <SidebarMenuButton asChild>
+                      <button onClick={() => router.push(navItem.url)}>{navItem.title}</button>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
