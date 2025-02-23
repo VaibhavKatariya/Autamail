@@ -27,7 +27,7 @@ export function AppSidebar({ authUser = { displayName: "", email: "", photo: "" 
     versions: [],
     navMain: [
       {
-        title: "Sending in pace",
+        title: 'git commit -m "It works... Probably"',
         url: "/",
         items: [
           {

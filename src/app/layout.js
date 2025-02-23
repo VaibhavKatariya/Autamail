@@ -16,7 +16,7 @@ const geistMono = localFont({
 
 export const metadata = {
   title: "Autamail",
-  description: "An automatic email app that sends emails to sponsors, chief guests, and participants. Developed under GDG JIIT 128 group by Vaibhav Katariya & Team.",
+  description: "Why do things manually in 2 minutes when you can spend hours automating them? 😏",
 };
 
 
@@ -24,7 +24,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} dark text-white ${geistMono.variable} antialiased`}
       >
         <AuthProvider>
           {children}

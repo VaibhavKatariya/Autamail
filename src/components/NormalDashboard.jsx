@@ -138,7 +138,7 @@ export default function SponsorEmailDashboard({ fromEmail }) {
       <Card className="w-full max-w-xl mx-auto">
         <CardHeader>
           <CardTitle className="text-center">Email Dashboard</CardTitle>
-          <CardDescription className="text-center">Send emails in fast pace😏</CardDescription>
+          <CardDescription className="text-center">Why do things manually in 2 minutes when you can spend hours automating them? 😏</CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="bulk" className="w-full">

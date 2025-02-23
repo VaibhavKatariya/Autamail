@@ -33,15 +33,15 @@ export default function HelpPage() {
       <main className="container mx-auto px-4 py-16">
         <section className="text-center mb-12">
           <h1 className="text-4xl font-bold mb-4">Need Help?</h1>
-          <p className="text-xl text-gray-300 mb-8">Don't worry, we've got your back!</p>
+          <p className="text-xl text-gray-300 mb-8">Don't worry, we've got your back! (Well, most of the time...)</p>
           <p className="text-gray-400 max-w-2xl mx-auto">
             Our team is here to assist you with any questions or issues you might have. Feel free to reach out to any of
-            our team members listed below for support.
+            our team members listed below for support (or just to tell them they're doing a terrible job).
           </p>
         </section>
 
         <section className="mb-16">
-          <h2 className="text-3xl font-semibold mb-6 text-center">Our Support Team</h2>
+          <h2 className="text-3xl font-semibold mb-6 text-center">Our "Highly Skilled" Support Team</h2>
           <div className="overflow-x-auto bg-black rounded-lg shadow-lg">
             <Table>
               <TableHeader>
@@ -90,7 +90,7 @@ export default function HelpPage() {
                           {dev.whatsapp}
                         </Link>
                       ) : (
-                        <span className="text-gray-400">Hidden</span> // Placeholder text
+                        <span className="text-gray-400">Hidden (probably dodging messages)</span>
                       )}
                     </TableCell>
                   </TableRow>
@@ -98,12 +98,17 @@ export default function HelpPage() {
               </TableBody>
             </Table>
           </div>
+          <p className="text-center text-gray-400 mt-4 italic">
+            (How did every piece of trash end up on the same team? 🤔)  
+            Anyway, hit us up if you need help. We might even reply. 😏
+          </p>
         </section>
 
         <section className="text-center mt-16">
           <h2 className="text-2xl font-semibold mb-4">Credits</h2>
           <p className="text-gray-400">
-          This project was made possible by the hard work and dedication of our talented team.
+            This project was made possible by the hard work and dedication of our talented team...  
+            And by "talented," we mean they GPT a lot.
           </p>
         </section>
       </main>
