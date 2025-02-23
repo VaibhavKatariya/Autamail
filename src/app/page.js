@@ -21,23 +21,24 @@ import { ref, get } from "firebase/database";
 export default function HomePage() {
   const [signInWithGoogle, user, loading, error] = useSignInWithGoogle(auth);
   const [authChecking, setAuthChecking] = useState(true);
+  const [loadingVerification, setLoadingVerification] = useState(false);
   const [showAlert, setShowAlert] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
+        setLoadingVerification(true);
         try {
           const tokenResult = await getIdTokenResult(currentUser);
-          const role = tokenResult.claims.role || null; // Check if user already has a role
+          const role = tokenResult.claims.role || null;
 
           if (role === "admin") {
-            // If the user is already an admin, let them in
             router.push("/admin/dashboard");
             return;
           }
 
-          const usersRef = ref(rtdb, "users"); // Reference to the users array
+          const usersRef = ref(rtdb, "users");
           const snapshot = await get(usersRef);
 
           if (snapshot.exists()) {
@@ -48,20 +49,16 @@ export default function HomePage() {
               const userRole = userData.role;
 
               if (!role) {
-                // Assign role ONLY if the user has no role
                 await fetch("/api/setCustomClaim", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ email: currentUser.email, role: userRole }),
                 });
-
-                // Refresh token to get updated claims
                 await getIdToken(currentUser, true);
               }
 
               router.push("/u/dashboard");
             } else {
-              // User does not exist in the database
               setShowAlert(true);
               await signOut(auth);
               await deleteUser(currentUser);
@@ -70,6 +67,7 @@ export default function HomePage() {
         } catch (err) {
           console.error("Error checking user access:", err);
         }
+        setLoadingVerification(false);
       }
       setAuthChecking(false);
     });
@@ -93,9 +91,16 @@ export default function HomePage() {
     );
   }
 
+  if (loadingVerification) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-black text-white">
+        Verifying your access...
+      </div>
+    );
+  }
+
   return (
     <>
-      {/* Alert Dialog for Unauthorized Users */}
       <AlertDialog open={showAlert} onOpenChange={setShowAlert}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -110,7 +115,6 @@ export default function HomePage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Login Page */}
       <div className="flex min-h-screen items-center justify-center bg-black">
         <Card className="w-[350px] bg-zinc-900 text-white border-zinc-800">
           <CardHeader>
