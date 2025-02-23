@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useAuthState } from "react-firebase-hooks/auth";
 import { useRouter } from "next/navigation";
-import { auth, rtdb } from "@/lib/firebase";
+import { rtdb } from "@/lib/firebase";
 import { ref, onValue, set } from "firebase/database";
+import { useAuth } from "@/context/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 export default function UsersPage() {
-  const [user, loading] = useAuthState(auth);
+  const { user, loading, checkingAuth } = useAuth();
   const router = useRouter();
   const [users, setUsers] = useState([]);
   const [dataLoading, setDataLoading] = useState(true);
@@ -27,12 +27,6 @@ export default function UsersPage() {
   const [alertMessage, setAlertMessage] = useState("");
   const [isError, setIsError] = useState(false);
   const [alertOpen, setAlertOpen] = useState(false);
-
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push("/");
-    }
-  }, [user, loading, router]);
 
   useEffect(() => {
     if (user) {
@@ -65,11 +59,12 @@ export default function UsersPage() {
     setSelectedUser(null);
   };
 
-  if (loading || dataLoading) {
+  if (loading || checkingAuth || dataLoading) {
     return <div className="flex justify-center items-center h-screen">Loading...</div>;
   }
 
   if (!user) {
+    router.push("/");
     return <div className="flex justify-center items-center h-screen">Redirecting...</div>;
   }
 

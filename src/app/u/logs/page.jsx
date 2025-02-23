@@ -1,33 +1,32 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { useAuthState } from "react-firebase-hooks/auth";
+import React from "react";
 import { useRouter } from "next/navigation";
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
 import { useCollection } from "react-firebase-hooks/firestore";
+import { useAuth } from "@/context/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function EmailLogs() {
-  const [user, loading] = useAuthState(auth);
+  const { user, loading, checkingAuth } = useAuth();
   const router = useRouter();
 
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push("/");
-    }
-  }, [user, loading, router]);
-
-  const emailLogsQuery = query(collection(db, "sentEmails"), orderBy("sentAt", "desc"));
-  const [logsSnapshot, logsLoading, error] = useCollection(emailLogsQuery);
-
-  if (loading || logsLoading) {
+  if (loading || checkingAuth) {
     return <div className="flex justify-center items-center h-screen">Loading...</div>;
   }
 
   if (!user) {
+    router.push("/");
     return <div className="flex justify-center items-center h-screen">Redirecting...</div>;
+  }
+
+  const emailLogsQuery = query(collection(db, "sentEmails"), orderBy("sentAt", "desc"));
+  const [logsSnapshot, logsLoading, error] = useCollection(emailLogsQuery);
+
+  if (logsLoading) {
+    return <div className="flex justify-center items-center h-screen">Loading...</div>;
   }
 
   if (error) {
@@ -60,7 +59,9 @@ export default function EmailLogs() {
                   <TableCell>
                     <ul>
                       {log.emails.map((email, index) => (
-                        <li key={index}>{email.companyName} ({email.email})</li>
+                        <li key={index}>
+                          {email.companyName} ({email.email})
+                        </li>
                       ))}
                     </ul>
                   </TableCell>
