@@ -1,36 +1,71 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+---
+Autamail - Automated Email Management System
+---
 
-## Getting Started
+# Autamail
 
-First, run the development server:
+Autamail is a web application built with Next.js, designed to streamline and automate email management processes. It enables the efficient handling of emails for chief guests, sponsors, and participants within GDG JIIT 128.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## 🚀 Features
+- **Automated Email Sending** – Easily send emails with predefined email templates.
+- **Firebase Authentication** – Secure login system with Firebase Auth.
+- **Firestore & Realtime Database** – Store email logs and manage real-time data updates.
+- **User-friendly Dashboard** – Intuitive interface for managing email campaigns.
+- **Next.js Framework** – Seamless frontend and backend integration.
+- **ShadCN UI Components** – Modern UI built with ShadCN.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🛠 Tech Stack
+- **Frontend & Backend:** Next.js (App Router)
+- **UI Library:** ShadCN UI
+- **Authentication:** Firebase Auth
+- **Database:** Firestore (for email logs), Firebase Realtime Database
+- **Deployment:** Vercel
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+## 🔧 Installation & Setup
 
-## Learn More
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/VaibhavKatariya/Autamail.git
+   cd Autamail
+   ```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Set up Firebase:
+   - Create a Firebase project.
+   - Enable Firestore, Realtime Database, and Authentication.
+   - Add Firebase credentials to `.env`:
+     ```bash
+     NEXT_PUBLIC_FIREBASE_API_KEY=demo_api_key
+     NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=demo_auth_domain
+     NEXT_PUBLIC_FIREBASE_PROJECT_ID=demo_project_id
+     NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=demo_storage_bucket
+     NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=demo_messaging_sender_id
+     NEXT_PUBLIC_FIREBASE_APP_ID=demo_app_id
+     FIREBASE_CLIENT_EMAIL=demo_client_email
+     FIREBASE_PRIVATE_KEY="demo_private_key"
+     NEXT_PUBLIC_WHATSAPP_NUMBER1=+911234567890
+     NEXT_PUBLIC_WHATSAPP_NUMBER2=+919876543210
+     NEXT_PUBLIC_WHATSAPP_NUMBER3=+919112233445
+     ```
+4. Start the development server:
+   ```bash
+   npm run dev
+   ```
 
-To learn more about Next.js, take a look at the following resources:
+## 🎯 Usage
+- Sign in with Firebase Authentication.
+- Select recipient categories (Chief Guests, Sponsors, Participants).
+- Compose and send automated emails.
+- View sent email logs in Firestore.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 📌 Contributing
+Contributions are welcome! Feel free to open an issue or submit a pull request.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
+## 📜 License
+This project is licensed under the MIT License.
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+---
+Made with ❤️ for GDG JIIT 128
