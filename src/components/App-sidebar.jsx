@@ -38,6 +38,10 @@ export function AppSidebar({ authUser = { displayName: "", email: "", photo: "" 
             title: "Logs",
             url: "/u/logs",
           },
+          {
+            title: "Need Help?",
+            url: "/u/help",
+          },
         ],
       },
     ],
