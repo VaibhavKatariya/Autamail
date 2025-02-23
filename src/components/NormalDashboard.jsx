@@ -11,7 +11,7 @@ import { ReloadIcon } from "@radix-ui/react-icons";
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { db } from "@/lib/firebase"; // Import Firestore instance
-import { collection, addDoc, writeBatch, doc } from "firebase/firestore"; // Import 'doc' here
+import { collection, addDoc } from "firebase/firestore"; // Import Firestore functions
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/firebase"; // Import Firebase auth
 
@@ -51,76 +51,61 @@ export default function SponsorEmailDashboard({ fromEmail }) {
       }
     }
 
+    // Disable the button to prevent multiple clicks
     setIsSubmitting(true);
-    const sentEmails = [];
 
-    for (const entry of bulkEntries) {
-      const formData = new FormData();
-      formData.append("entry.852843744", entry.name);
-      formData.append("entry.1045781291", entry.email);
-      formData.append("entry.837450281", template);
-      formData.append("entry.1580046483", fromEmail);
+    try {
+      for (const entry of bulkEntries) {
+        // Create a document in the sentEmails collection with status 202 (processing)
+        const sentEmailsRef = await addDoc(collection(db, "sentEmails"), {
+          companyName: entry.name,
+          email: entry.email,
+          templateUsed: template,
+          sentBy: user.email,
+          timestamp: new Date().toISOString(),
+          status: 202, // Processing (initial status)
+        });
 
-      try {
+        // Retrieve the UID of the document
+        const sentEmailsId = sentEmailsRef.id;
+
+        await addDoc(collection(db, `users/${user.uid}/sentEmails`), {
+          companyName: entry.name,
+          email: entry.email,
+          templateUsed: template,
+          sentBy: user.email,
+          timestamp: new Date().toISOString(),
+          id: sentEmailsId,
+        });
+
+        // Prepare form data
+        const formData = new FormData();
+        formData.append("entry.852843744", entry.name);
+        formData.append("entry.1045781291", entry.email);
+        formData.append("entry.837450281", template);
+        formData.append("entry.1580046483", fromEmail);
+        formData.append("entry.1765701214", sentEmailsId); // Append the UID to the form
+
+        // Send the email
         await fetch(`https://docs.google.com/forms/d/${formId}/formResponse`, {
           method: "POST",
           body: formData,
           mode: "no-cors",
         });
-
-        // Add successful email to the list
-        sentEmails.push({
-          companyName: entry.name,
-          email: entry.email,
-          templateUsed: template,
-          sentBy: user.email, // Store the sender's email
-          timestamp: new Date().toISOString(),
-        });
-      } catch (error) {
-        setDialogMessage(`Failed to send email to ${entry.name} (${entry.email})`);
-        setDialogType("error");
-        setIsDialogOpen(true);
-        console.error("Error:", error);
-        setIsSubmitting(false);
-        return; // Exit on error
       }
-    }
 
-    // Save the sent emails list to Firestore
-    if (sentEmails.length > 0) {
-      const batch = writeBatch(db); // Create a batch for atomic writes
-
-      try {
-        // Add to the global sentEmails collection
-        const sentEmailsRef = collection(db, "sentEmails");
-        const sentEmailsDocRef = doc(sentEmailsRef); // Create a new document reference
-        batch.set(sentEmailsDocRef, {
-          emails: sentEmails,
-          sentAt: new Date(),
-        });
-
-        // Add to the user's specific sentEmails subcollection
-        const userSentEmailsRef = collection(db, `users/${user.uid}/sentEmails`);
-        const userSentEmailsDocRef = doc(userSentEmailsRef); // Create a new document reference
-        batch.set(userSentEmailsDocRef, {
-          emails: sentEmails,
-          sentAt: new Date(),
-        });
-
-        await batch.commit();
-        setDialogMessage("Email sent successfully!");
-        setDialogType("success");
-      } catch (error) {
-        console.error("Error storing email data in Firestore:", error);
-        setDialogMessage("Failed to save email records.");
-        setDialogType("error");
-      }
+      setDialogMessage("Email sent successfully! Status is being processed.");
+      setDialogType("success");
+    } catch (error) {
+      console.error("Error:", error);
+      setDialogMessage("Failed to send emails. Please try again.");
+      setDialogType("error");
     }
 
     setBulkEntries([]);
     setTemplate("");
     setIsDialogOpen(true);
-    setIsSubmitting(false);
+    setIsSubmitting(false); // Re-enable the button after completion
   };
 
   const addBulkEntry = () => {

@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
-import { collection, query, orderBy, getDocs } from "firebase/firestore";
+import { collection, query, where, orderBy, getDocs } from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -25,12 +25,14 @@ export default function EmailLogs() {
 
     const fetchEmailLogs = async () => {
       try {
-        // Fetch logs from the user's specific sentEmails subcollection
-        const userEmailLogsQuery = query(
-          collection(db, `users/${user.uid}/sentEmails`),
-          orderBy("sentAt", "desc")
+        // Query the sentEmails collection for logs sent by the current user
+        const sentEmailsQuery = query(
+          collection(db, "sentEmails"),
+          where("sentBy", "==", user.email), // Filter by the current user's email
+          orderBy("timestamp", "desc") // Order by timestamp in descending order
         );
-        const snapshot = await getDocs(userEmailLogsQuery);
+
+        const snapshot = await getDocs(sentEmailsQuery);
         const fetchedLogs = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
@@ -74,18 +76,16 @@ export default function EmailLogs() {
             <TableBody>
               {logs.map((log) => (
                 <TableRow key={log.id}>
-                  <TableCell>{log.emails[0]?.sentBy || "Unknown"}</TableCell>
-                  <TableCell>{log.emails[0]?.templateUsed || "N/A"}</TableCell>
+                  <TableCell>{log.sentBy || "Unknown"}</TableCell>
+                  <TableCell>{log.templateUsed || "N/A"}</TableCell>
                   <TableCell>
                     <ul>
-                      {log.emails.map((email) => (
-                        <li key={email.id}>
-                          {email.companyName} ({email.email})
-                        </li>
-                      ))}
+                      <li>
+                        {log.companyName} ({log.email})
+                      </li>
                     </ul>
                   </TableCell>
-                  <TableCell>{new Date(log.sentAt.toDate()).toLocaleString()}</TableCell>
+                  <TableCell>{new Date(log.timestamp).toLocaleString()}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

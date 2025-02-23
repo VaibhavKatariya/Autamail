@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
-import { collection, query, orderBy } from "firebase/firestore";
+import { collection, query, orderBy, where } from "firebase/firestore";
 import { useCollection } from "react-firebase-hooks/firestore";
 import { useAuth } from "@/context/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +15,12 @@ export default function EmailLogs() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
 
-  const emailLogsQuery = query(collection(db, "sentEmails"), orderBy("sentAt", "desc"));
+  // Query to fetch logs for the current user
+  const emailLogsQuery = query(
+    collection(db, "sentEmails"),
+    orderBy("timestamp", "desc") // Order by timestamp in descending order
+  );
+
   const [logsSnapshot, logsLoading, error] = useCollection(emailLogsQuery);
 
   if (loading || checkingAuth) {
@@ -35,12 +40,19 @@ export default function EmailLogs() {
     return <div className="flex justify-center items-center h-screen">Error loading logs.</div>;
   }
 
+  // Map Firestore documents to logs array
   const logs = logsSnapshot?.docs.map((doc) => ({ id: doc.id, ...doc.data() })) || [];
 
+  // Filter logs based on search query
   const filteredLogs = logs.filter((log) => {
-    const sender = log.emails[0]?.sentBy?.toLowerCase() || "";
-    const recipients = log.emails.map(email => email.companyName?.toLowerCase()).join(" ");
-    return sender.includes(searchQuery.toLowerCase()) || recipients.includes(searchQuery.toLowerCase());
+    const sender = log.sentBy?.toLowerCase() || "";
+    const recipient = log.companyName?.toLowerCase() || "";
+    const recipientEmail = log.email?.toLowerCase() || "";
+    return (
+      sender.includes(searchQuery.toLowerCase()) ||
+      recipient.includes(searchQuery.toLowerCase()) ||
+      recipientEmail.includes(searchQuery.toLowerCase())
+    );
   });
 
   return (
@@ -50,7 +62,7 @@ export default function EmailLogs() {
           <CardTitle className="text-center">Email Logs</CardTitle>
           <Input
             type="text"
-            placeholder="Search by Sender or Recipient"
+            placeholder="Search by Sender, Recipient, or Email"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="mt-4"
@@ -62,25 +74,21 @@ export default function EmailLogs() {
               <TableRow>
                 <TableHead>Sender</TableHead>
                 <TableHead>Template</TableHead>
-                <TableHead>Recipients</TableHead>
+                <TableHead>Recipient</TableHead>
+                <TableHead>Recipient Email</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Date</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredLogs.map((log) => (
                 <TableRow key={log.id}>
-                  <TableCell>{log.emails[0]?.sentBy || "Unknown"}</TableCell>
-                  <TableCell>{log.emails[0]?.templateUsed || "N/A"}</TableCell>
-                  <TableCell>
-                    <ul>
-                      {log.emails.map((email, index) => (
-                        <li key={index}>
-                          {email.companyName} ({email.email})
-                        </li>
-                      ))}
-                    </ul>
-                  </TableCell>
-                  <TableCell>{new Date(log.sentAt.toDate()).toLocaleString()}</TableCell>
+                  <TableCell>{log.sentBy || "Unknown"}</TableCell>
+                  <TableCell>{log.templateUsed || "N/A"}</TableCell>
+                  <TableCell>{log.companyName || "N/A"}</TableCell>
+                  <TableCell>{log.email || "N/A"}</TableCell>
+                  <TableCell>{log.status || "N/A"}</TableCell>
+                  <TableCell>{new Date(log.timestamp).toLocaleString()}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
