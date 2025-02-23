@@ -43,7 +43,7 @@ export default function UsersPage() {
     if (!selectedUser) return;
 
     try {
-      const updatedUsers = users.filter((user) => user.email !== selectedUser.email);
+      const updatedUsers = users.filter((u) => u.email !== selectedUser.email);
       await set(ref(rtdb, "users"), updatedUsers);
 
       setAlertMessage(`User ${selectedUser.email} removed successfully!`);
@@ -57,6 +57,34 @@ export default function UsersPage() {
     setDialogOpen(false);
     setAlertOpen(true);
     setSelectedUser(null);
+  };
+
+  const handleRoleChange = async (email, role) => {
+    try {
+      // Update role in Realtime Database
+      const updatedUsers = users.map((u) =>
+        u.email === email ? { ...u, role } : u
+      );
+      await set(ref(rtdb, "users"), updatedUsers);
+
+      // Send request to set custom claim
+      await fetch("/api/setCustomClaim", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, role }),
+      });
+
+      setAlertMessage(`Role updated successfully for ${email}!`);
+      setIsError(false);
+      setAlertOpen(true);
+    } catch (error) {
+      console.error("Error updating role:", error);
+      setAlertMessage("Failed to update role. Please try again.");
+      setIsError(true);
+      setAlertOpen(true);
+    }
   };
 
   if (loading || checkingAuth || dataLoading) {
@@ -89,7 +117,16 @@ export default function UsersPage() {
                 {users.map((user, index) => (
                   <TableRow key={index}>
                     <TableCell>{user.email}</TableCell>
-                    <TableCell>{user.role}</TableCell>
+                    <TableCell>
+                      <select
+                        value={user.role}
+                        style={{ backgroundColor: 'black', color: 'white', border: 'none', padding: '0.5rem', borderRadius: '4px' }}
+                        onChange={(e) => handleRoleChange(user.email, e.target.value)}
+                      >
+                        <option value="member">Member</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    </TableCell>
                     <TableCell>
                       <Button
                         variant="destructive"
