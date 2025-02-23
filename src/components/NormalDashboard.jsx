@@ -6,13 +6,12 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 import { ReloadIcon } from "@radix-ui/react-icons";
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { db } from "@/lib/firebase"; // Import Firestore instance
-import { collection, addDoc } from "firebase/firestore";
+import { collection, addDoc, writeBatch, doc } from "firebase/firestore"; // Import 'doc' here
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/firebase"; // Import Firebase auth
 
@@ -21,17 +20,38 @@ export default function SponsorEmailDashboard({ fromEmail }) {
   const [bulkEntries, setBulkEntries] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [dialogMessage, setDialogMessage] = useState(""); // For dialog messages
+  const [dialogType, setDialogType] = useState(""); // For success or error type
   const formId = "10amvbxLmUDHbvVKVck3uleKC2sABzfGTbJL4GN0o2_M";
   const [user] = useAuthState(auth); // Get the logged-in user
 
   const handleBulkSubmit = async () => {
     if (!user) {
-      toast.error("You must be logged in to send emails.");
+      setDialogMessage("You must be logged in to send emails.");
+      setDialogType("error");
+      setIsDialogOpen(true);
       return;
     }
 
-    setIsSubmitting(true);
+    // Check if template is selected
+    if (!template) {
+      setDialogMessage("Please select an email template.");
+      setDialogType("error");
+      setIsDialogOpen(true);
+      return;
+    }
 
+    // Check if all bulk entries are filled
+    for (const entry of bulkEntries) {
+      if (!entry.name || !entry.email) {
+        setDialogMessage("All fields must be filled in each entry.");
+        setDialogType("error");
+        setIsDialogOpen(true);
+        return;
+      }
+    }
+
+    setIsSubmitting(true);
     const sentEmails = [];
 
     for (const entry of bulkEntries) {
@@ -57,29 +77,47 @@ export default function SponsorEmailDashboard({ fromEmail }) {
           timestamp: new Date().toISOString(),
         });
       } catch (error) {
-        toast.error(`Failed to send email to ${entry.name} (${entry.email})`);
+        setDialogMessage(`Failed to send email to ${entry.name} (${entry.email})`);
+        setDialogType("error");
+        setIsDialogOpen(true);
         console.error("Error:", error);
+        setIsSubmitting(false);
+        return; // Exit on error
       }
     }
 
     // Save the sent emails list to Firestore
     if (sentEmails.length > 0) {
+      const batch = writeBatch(db); // Create a batch for atomic writes
+
       try {
-        await addDoc(collection(db, "sentEmails"), {
+        // Add to the global sentEmails collection
+        const sentEmailsRef = collection(db, "sentEmails");
+        const sentEmailsDocRef = doc(sentEmailsRef); // Create a new document reference
+        batch.set(sentEmailsDocRef, {
           emails: sentEmails,
           sentAt: new Date(),
         });
-        toast.success("Emails recorded in Firestore.");
+
+        // Add to the user's specific sentEmails subcollection
+        const userSentEmailsRef = collection(db, `users/${user.uid}/sentEmails`);
+        const userSentEmailsDocRef = doc(userSentEmailsRef); // Create a new document reference
+        batch.set(userSentEmailsDocRef, {
+          emails: sentEmails,
+          sentAt: new Date(),
+        });
+
+        await batch.commit();
       } catch (error) {
         console.error("Error storing email data in Firestore:", error);
-        toast.error("Failed to save email records.");
+        setDialogMessage("Failed to save email records.");
+        setDialogType("error");
       }
     }
 
     setBulkEntries([]);
     setTemplate("");
     setIsDialogOpen(true);
-    toast.success("Emails sent successfully!");
     setIsSubmitting(false);
   };
 
@@ -161,8 +199,9 @@ export default function SponsorEmailDashboard({ fromEmail }) {
         <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Email Sent Successfully</AlertDialogTitle>
+              <AlertDialogTitle>{dialogType === "success" ? "Success!" : "Error!"}</AlertDialogTitle>
             </AlertDialogHeader>
+            <div className="py-2">{dialogMessage}</div>
             <AlertDialogAction onClick={handleDialogClose}>Okay</AlertDialogAction>
           </AlertDialogContent>
         </AlertDialog>

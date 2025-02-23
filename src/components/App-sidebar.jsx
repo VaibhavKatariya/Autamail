@@ -49,10 +49,6 @@ export function AppSidebar({ authUser = { displayName: "", email: "", photo: "" 
       {
         title: "Manage Users",
         url: "/admin/manageUsers",
-      },
-      {
-        title: "Custom Claim",
-        url: "/admin/customClaim",
       }
     );
   }

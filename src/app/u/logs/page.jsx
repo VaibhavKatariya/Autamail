@@ -1,10 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
-import { collection, query, orderBy } from "firebase/firestore";
-import { useCollection } from "react-firebase-hooks/firestore";
+import { collection, query, orderBy, getDocs } from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -12,28 +11,49 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 export default function EmailLogs() {
   const { user, loading, checkingAuth } = useAuth();
   const router = useRouter();
+  const [logs, setLogs] = useState([]);
+  const [logsLoading, setLogsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  if (loading || checkingAuth) {
-    return <div className="flex justify-center items-center h-screen">Loading...</div>;
-  }
+  useEffect(() => {
+    if (loading || checkingAuth) return;
 
-  if (!user) {
-    router.push("/");
-    return <div className="flex justify-center items-center h-screen">Redirecting...</div>;
-  }
+    if (!user) {
+      router.push("/");
+      return;
+    }
 
-  const emailLogsQuery = query(collection(db, "sentEmails"), orderBy("sentAt", "desc"));
-  const [logsSnapshot, logsLoading, error] = useCollection(emailLogsQuery);
+    const fetchEmailLogs = async () => {
+      try {
+        // Fetch logs from the user's specific sentEmails subcollection
+        const userEmailLogsQuery = query(
+          collection(db, `users/${user.uid}/sentEmails`),
+          orderBy("sentAt", "desc")
+        );
+        const snapshot = await getDocs(userEmailLogsQuery);
+        const fetchedLogs = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+
+        setLogs(fetchedLogs);
+      } catch (err) {
+        setError(err);
+      } finally {
+        setLogsLoading(false);
+      }
+    };
+
+    fetchEmailLogs();
+  }, [user, loading, checkingAuth, router]);
 
   if (logsLoading) {
     return <div className="flex justify-center items-center h-screen">Loading...</div>;
   }
 
   if (error) {
-    return <div className="flex justify-center items-center h-screen">Error loading logs.</div>;
+    return <div className="flex justify-center items-center h-screen">Error loading logs: {error.message}</div>;
   }
-
-  const logs = logsSnapshot?.docs.map((doc) => ({ id: doc.id, ...doc.data() })) || [];
 
   return (
     <div className="flex items-center justify-center w-full h-[calc(100vh-10vh)] p-4">
@@ -58,8 +78,8 @@ export default function EmailLogs() {
                   <TableCell>{log.emails[0]?.templateUsed || "N/A"}</TableCell>
                   <TableCell>
                     <ul>
-                      {log.emails.map((email, index) => (
-                        <li key={index}>
+                      {log.emails.map((email) => (
+                        <li key={email.id}>
                           {email.companyName} ({email.email})
                         </li>
                       ))}
