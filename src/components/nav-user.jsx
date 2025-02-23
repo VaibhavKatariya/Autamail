@@ -49,7 +49,7 @@ export function NavUser() {
                         align="end"
                         sideOffset={4}
                     >
-                        <DropdownMenuItem onClick={() => auth.signOut()}>
+                        <DropdownMenuItem className="cursor-pointer bg-zinc-800 text-white" onClick={() => auth.signOut()}>
                             <LogOut />
                             <div>Log out</div>
                         </DropdownMenuItem>
