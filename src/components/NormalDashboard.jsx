@@ -25,6 +25,12 @@ export default function SponsorEmailDashboard({ fromEmail }) {
   const formId = "10amvbxLmUDHbvVKVck3uleKC2sABzfGTbJL4GN0o2_M";
   const [user] = useAuthState(auth); // Get the logged-in user
 
+  // Function to validate email format
+  const validateEmail = (email) => {
+    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/; // Basic email regex
+    return regex.test(email);
+  };
+
   const handleBulkSubmit = async () => {
     if (!user) {
       setDialogMessage("You must be logged in to send emails.");
@@ -41,10 +47,18 @@ export default function SponsorEmailDashboard({ fromEmail }) {
       return;
     }
 
-    // Check if all bulk entries are filled
+    // Check if all bulk entries are filled and emails are valid
     for (const entry of bulkEntries) {
       if (!entry.name || !entry.email) {
         setDialogMessage("All fields must be filled in each entry.");
+        setDialogType("error");
+        setIsDialogOpen(true);
+        return;
+      }
+
+      // Validate email format
+      if (!validateEmail(entry.email)) {
+        setDialogMessage(`Invalid email format for ${entry.name} (${entry.email}). Please enter a valid email address.`);
         setDialogType("error");
         setIsDialogOpen(true);
         return;
@@ -54,13 +68,15 @@ export default function SponsorEmailDashboard({ fromEmail }) {
     // Disable the button to prevent multiple clicks
     setIsSubmitting(true);
 
+    let templateNew = template === "A" ? "Sponsor's mail" : template === "B" ? "Chief's mail" : "Participant's mail";
+
     try {
       for (const entry of bulkEntries) {
         // Create a document in the sentEmails collection with status 202 (processing)
         const sentEmailsRef = await addDoc(collection(db, "sentEmails"), {
           companyName: entry.name,
           email: entry.email,
-          templateUsed: template,
+          templateUsed: templateNew,
           sentBy: user.email,
           timestamp: new Date().toISOString(),
           status: 202, // Processing (initial status)
@@ -68,15 +84,6 @@ export default function SponsorEmailDashboard({ fromEmail }) {
 
         // Retrieve the UID of the document
         const sentEmailsId = sentEmailsRef.id;
-
-        await addDoc(collection(db, `users/${user.uid}/sentEmails`), {
-          companyName: entry.name,
-          email: entry.email,
-          templateUsed: template,
-          sentBy: user.email,
-          timestamp: new Date().toISOString(),
-          id: sentEmailsId,
-        });
 
         // Prepare form data
         const formData = new FormData();
