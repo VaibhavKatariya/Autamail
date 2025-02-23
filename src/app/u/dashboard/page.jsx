@@ -8,6 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 
 const Page = () => {
   const { user, loading, isAdmin, checkingAuth } = useAuth();
+  console.log(isAdmin)
   const router = useRouter();
 
   if (loading || checkingAuth) {
