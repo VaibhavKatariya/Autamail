@@ -4,10 +4,18 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction } from "@/components/ui/alert-dialog";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 import { auth, rtdb } from "@/lib/firebase";
 import { useSignInWithGoogle } from "react-firebase-hooks/auth";
-import { onAuthStateChanged, deleteUser, signOut } from "firebase/auth";
+import { onAuthStateChanged, deleteUser, signOut, getIdToken } from "firebase/auth";
 import { ref, get } from "firebase/database";
 
 export default function HomePage() {
@@ -27,9 +35,18 @@ export default function HomePage() {
           if (snapshot.exists()) {
             const usersList = snapshot.val();
             if (usersList.includes(userEmail)) {
+              // Assign 'member' role using /setCustomClaim
+              await fetch("/api/setCustomClaim", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email: userEmail, role: "member" }), // Ensure role is passed
+              });
+
+              // Refresh token to get updated claims
+              await getIdToken(currentUser, true);
+              
               router.push("/u/dashboard");
             } else {
-              // ❌ Show alert if user is not approved
               setShowAlert(true);
               await signOut(auth);
               await deleteUser(currentUser);
