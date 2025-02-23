@@ -108,6 +108,8 @@ export default function SponsorEmailDashboard({ fromEmail }) {
         });
 
         await batch.commit();
+        setDialogMessage("Email sent successfully!");
+        setDialogType("success");
       } catch (error) {
         console.error("Error storing email data in Firestore:", error);
         setDialogMessage("Failed to save email records.");
