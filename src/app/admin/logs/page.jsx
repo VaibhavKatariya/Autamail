@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
@@ -8,10 +8,15 @@ import { useCollection } from "react-firebase-hooks/firestore";
 import { useAuth } from "@/context/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
 
 export default function EmailLogs() {
   const { user, loading, checkingAuth } = useAuth();
   const router = useRouter();
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const emailLogsQuery = query(collection(db, "sentEmails"), orderBy("sentAt", "desc"));
+  const [logsSnapshot, logsLoading, error] = useCollection(emailLogsQuery);
 
   if (loading || checkingAuth) {
     return <div className="flex justify-center items-center h-screen">Loading...</div>;
@@ -21,9 +26,6 @@ export default function EmailLogs() {
     router.push("/");
     return <div className="flex justify-center items-center h-screen">Redirecting...</div>;
   }
-
-  const emailLogsQuery = query(collection(db, "sentEmails"), orderBy("sentAt", "desc"));
-  const [logsSnapshot, logsLoading, error] = useCollection(emailLogsQuery);
 
   if (logsLoading) {
     return <div className="flex justify-center items-center h-screen">Loading...</div>;
@@ -35,11 +37,24 @@ export default function EmailLogs() {
 
   const logs = logsSnapshot?.docs.map((doc) => ({ id: doc.id, ...doc.data() })) || [];
 
+  const filteredLogs = logs.filter((log) => {
+    const sender = log.emails[0]?.sentBy?.toLowerCase() || "";
+    const recipients = log.emails.map(email => email.companyName?.toLowerCase()).join(" ");
+    return sender.includes(searchQuery.toLowerCase()) || recipients.includes(searchQuery.toLowerCase());
+  });
+
   return (
     <div className="flex items-center justify-center w-full h-[calc(100vh-10vh)] p-4">
       <Card className="w-full max-w-4xl mx-auto">
         <CardHeader>
           <CardTitle className="text-center">Email Logs</CardTitle>
+          <Input
+            type="text"
+            placeholder="Search by Sender or Recipient"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="mt-4"
+          />
         </CardHeader>
         <CardContent>
           <Table>
@@ -52,7 +67,7 @@ export default function EmailLogs() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {logs.map((log) => (
+              {filteredLogs.map((log) => (
                 <TableRow key={log.id}>
                   <TableCell>{log.emails[0]?.sentBy || "Unknown"}</TableCell>
                   <TableCell>{log.emails[0]?.templateUsed || "N/A"}</TableCell>
