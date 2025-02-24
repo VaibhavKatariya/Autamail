@@ -7,6 +7,9 @@ import { collection, query, where, orderBy, getDocs } from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ReloadIcon } from "@radix-ui/react-icons"; // Radix UI Spinner
+import formData from "form-data";
+import Mailgun from "mailgun.js";
 
 export default function EmailLogs() {
   const { user, loading, checkingAuth } = useAuth();
@@ -14,6 +17,10 @@ export default function EmailLogs() {
   const [logs, setLogs] = useState([]);
   const [logsLoading, setLogsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [emailStatuses, setEmailStatuses] = useState({}); // Store only statuses for specific emails
+
+  const mailgun = new Mailgun(formData);
+  const mg = mailgun.client({ username: "api", key: process.env.NEXT_PUBLIC_MAILGUN_API_KEY });
 
   useEffect(() => {
     if (loading || checkingAuth) return;
@@ -25,20 +32,29 @@ export default function EmailLogs() {
 
     const fetchEmailLogs = async () => {
       try {
-        // Query the sentEmails collection for logs sent by the current user
         const sentEmailsQuery = query(
           collection(db, "sentEmails"),
-          where("sentBy", "==", user.email), // Filter by the current user's email
-          orderBy("timestamp", "desc") // Order by timestamp in descending order
+          where("sentBy", "==", user.email),
+          orderBy("timestamp", "desc")
         );
 
         const snapshot = await getDocs(sentEmailsQuery);
         const fetchedLogs = snapshot.docs.map((doc) => ({
           id: doc.id,
-          ...doc.data(),
+          messageId: doc.data().messageId || null,
+          sentBy: doc.data().sentBy || "Unknown",
+          templateUsed: doc.data().templateUsed || "N/A",
+          companyName: doc.data().companyName || "N/A",
+          email: doc.data().email || "N/A",
+          timestamp: doc.data().timestamp || null,
         }));
 
         setLogs(fetchedLogs);
+
+        const messageIds = fetchedLogs.map((log) => log.messageId).filter(Boolean);
+        if (messageIds.length > 0) {
+          fetchEmailStatuses(messageIds);
+        }
       } catch (err) {
         setError(err);
       } finally {
@@ -48,6 +64,35 @@ export default function EmailLogs() {
 
     fetchEmailLogs();
   }, [user, loading, checkingAuth, router]);
+
+  const fetchEmailStatuses = async (messageIds) => {
+    try {
+      const statuses = {};
+
+      for (const messageId of messageIds) {
+        const response = await fetch(
+          `https://api.eu.mailgun.net/v3/${process.env.NEXT_PUBLIC_MAILGUN_DOMAIN}/events?message-id=${messageId}&limit=1`,
+          {
+            method: "GET",
+            headers: {
+              Authorization: `Basic ${btoa(`api:${process.env.NEXT_PUBLIC_MAILGUN_API_KEY}`)}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`Mailgun API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        statuses[messageId] = data.items.length > 0 ? data.items[0].event : "Unknown";
+      }
+
+      setEmailStatuses(statuses);
+    } catch (error) {
+      console.error("Error fetching email statuses:", error);
+    }
+  };
 
   if (logsLoading) {
     return <div className="flex justify-center items-center h-screen">Loading...</div>;
@@ -79,18 +124,29 @@ export default function EmailLogs() {
               <TableBody>
                 {logs.map((log) => (
                   <TableRow key={log.id}>
-                    <TableCell>{log.sentBy || "Unknown"}</TableCell>
-                    <TableCell>{log.templateUsed || "N/A"}</TableCell>
-                    <TableCell>{log.companyName || "N/A"}</TableCell>
-                    <TableCell>{log.email || "N/A"}</TableCell>
+                    <TableCell>{log.sentBy}</TableCell>
+                    <TableCell>{log.templateUsed}</TableCell>
+                    <TableCell>{log.companyName}</TableCell>
+                    <TableCell>{log.email}</TableCell>
                     <TableCell>
-                      <span
-                        className="inline-block w-2.5 h-2.5 rounded-full mr-2"
-                        style={{ backgroundColor: log.status === "pending" ? "yellow" : log.status === "failed" ? "red" : "cyan" }}
-                      ></span>
-                      {log.status || "N/A"}
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="inline-block w-2.5 h-2.5 rounded-full"
+                          style={{
+                            backgroundColor:
+                              emailStatuses[log.messageId] === "delivered"
+                                ? "green"
+                                : emailStatuses[log.messageId] === "failed"
+                                ? "red"
+                                : emailStatuses[log.messageId] === "bounced"
+                                ? "orange"
+                                : "gray",
+                          }}
+                        ></span>
+                        {emailStatuses[log.messageId] || "Checking..."}
+                      </div>
                     </TableCell>
-                    <TableCell>{new Date(log.timestamp).toLocaleString()}</TableCell>
+                    <TableCell>{log.timestamp ? new Date(log.timestamp).toLocaleString() : "N/A"}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
