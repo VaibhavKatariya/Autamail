@@ -70,7 +70,9 @@ export default function EmailLogs() {
                 <TableRow>
                   <TableHead>Sender</TableHead>
                   <TableHead>Template</TableHead>
-                  <TableHead>Recipients</TableHead>
+                  <TableHead>Recipient Name</TableHead>
+                  <TableHead>Recipient Email</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Date</TableHead>
                 </TableRow>
               </TableHeader>
@@ -79,12 +81,14 @@ export default function EmailLogs() {
                   <TableRow key={log.id}>
                     <TableCell>{log.sentBy || "Unknown"}</TableCell>
                     <TableCell>{log.templateUsed || "N/A"}</TableCell>
+                    <TableCell>{log.companyName || "N/A"}</TableCell>
+                    <TableCell>{log.email || "N/A"}</TableCell>
                     <TableCell>
-                      <ul>
-                        <li>
-                          {log.companyName} ({log.email})
-                        </li>
-                      </ul>
+                      <span
+                        className="inline-block w-2.5 h-2.5 rounded-full mr-2"
+                        style={{ backgroundColor: log.status === 500 ? "red" : "cyan" }}
+                      ></span>
+                      {log.status || "N/A"}
                     </TableCell>
                     <TableCell>{new Date(log.timestamp).toLocaleString()}</TableCell>
                   </TableRow>

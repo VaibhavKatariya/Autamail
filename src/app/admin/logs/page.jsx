@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
-import { collection, query, orderBy, where } from "firebase/firestore";
+import { collection, query, orderBy } from "firebase/firestore";
 import { useCollection } from "react-firebase-hooks/firestore";
 import { useAuth } from "@/context/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,10 +15,9 @@ export default function EmailLogs() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Query to fetch logs for the current user
   const emailLogsQuery = query(
     collection(db, "sentEmails"),
-    orderBy("timestamp", "desc") // Order by timestamp in descending order
+    orderBy("timestamp", "desc")
   );
 
   const [logsSnapshot, logsLoading, error] = useCollection(emailLogsQuery);
@@ -40,10 +39,8 @@ export default function EmailLogs() {
     return <div className="flex justify-center items-center h-screen">Error loading logs.</div>;
   }
 
-  // Map Firestore documents to logs array
   const logs = logsSnapshot?.docs.map((doc) => ({ id: doc.id, ...doc.data() })) || [];
 
-  // Filter logs based on search query
   const filteredLogs = logs.filter((log) => {
     const sender = log.sentBy?.toLowerCase() || "";
     const recipient = log.companyName?.toLowerCase() || "";
@@ -62,7 +59,7 @@ export default function EmailLogs() {
           <CardTitle className="text-center">Email Logs</CardTitle>
           <Input
             type="text"
-            placeholder="Search by Sender, Recipient, or Email"
+            placeholder="Search by Sender, Recipient Name, or Email"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="mt-4"
@@ -74,7 +71,7 @@ export default function EmailLogs() {
               <TableRow>
                 <TableHead>Sender</TableHead>
                 <TableHead>Template</TableHead>
-                <TableHead>Recipient</TableHead>
+                <TableHead>Recipient Name</TableHead>
                 <TableHead>Recipient Email</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Date</TableHead>
@@ -87,7 +84,13 @@ export default function EmailLogs() {
                   <TableCell>{log.templateUsed || "N/A"}</TableCell>
                   <TableCell>{log.companyName || "N/A"}</TableCell>
                   <TableCell>{log.email || "N/A"}</TableCell>
-                  <TableCell>{log.status || "N/A"}</TableCell>
+                  <TableCell>
+                    <span
+                      className="inline-block w-2.5 h-2.5 rounded-full mr-2"
+                      style={{ backgroundColor: log.status === 500 ? "red" : "cyan" }}
+                    ></span>
+                    {log.status || "N/A"}
+                  </TableCell>
                   <TableCell>{new Date(log.timestamp).toLocaleString()}</TableCell>
                 </TableRow>
               ))}
