@@ -8,31 +8,35 @@ import {
     SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useEffect } from "react";
 
 export default function RootLayout({ children }) {
     const { user, loading, isAdmin, checkingAuth } = useAuth();
     const router = useRouter();
+    const pathname = usePathname();
 
     useEffect(() => {
-        // Redirect if the user is an admin and is trying to access a user route
-        if (user && isAdmin && window.location.pathname.startsWith('/u/')) {
-            const newPath = window.location.pathname.replace('/u/', '/admin/');
-            router.push(newPath);
+        if (typeof window === "undefined") return; // Prevents issues during SSR
+
+        if (user && isAdmin && pathname.startsWith("/u/")) {
+            const newPath = pathname.replace("/u/", "/admin/");
+            router.replace(newPath); // Use replace instead of push to avoid stacking history
         }
-    }, [user, isAdmin, router]);
+    }, [user, isAdmin, pathname, router]);
+
+    useEffect(() => {
+        if (!loading && !checkingAuth) {
+            if (!user) {
+                router.replace("/");
+            } else if (!isAdmin && !pathname.startsWith("/admin/")) {
+                router.replace("/u/dashboard");
+            }
+        }
+    }, [user, isAdmin, loading, checkingAuth, pathname, router]);
 
     if (loading || checkingAuth) {
         return <div className="flex justify-center items-center h-screen">Loading...</div>;
-    }
-
-    if (!user) {
-        router.push("/");
-        return <div className="flex justify-center items-center h-screen">Redirecting...</div>;
-    } else if (!isAdmin) {
-        router.push("/u/dashboard");
-        return <div className="flex justify-center items-center h-screen">Redirecting...</div>;
     }
 
     return (
