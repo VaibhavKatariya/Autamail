@@ -16,6 +16,7 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import AdminDashboard from "@/components/admin-dashboard";
+import ApproveUsers from "@/components/approveUser";
 
 export default function UsersPage() {
   const { user, loading, checkingAuth } = useAuth();
@@ -111,6 +112,7 @@ export default function UsersPage() {
   return (
     <div className="flex flex-col items-center justify-start p-4 space-y-4">
       <AdminDashboard />
+      <ApproveUsers />
       <div className="flex items-center justify-center w-full">
         <Card className="w-full max-w-4xl">
           <CardHeader>
