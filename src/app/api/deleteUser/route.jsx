@@ -22,42 +22,60 @@ export async function POST(req) {
     }
 
     console.log("Checking if user exists in Firebase Auth...");
-    let userExists = true;
+    let userExists = false;
+    let uid = null;
 
     try {
-      await admin.auth().getUserByEmail(email);
+      const userRecord = await admin.auth().getUserByEmail(email);
       console.log("User exists in Firebase Auth.");
+      userExists = true;
+      uid = userRecord.uid;
     } catch (error) {
       if (error.code === "auth/user-not-found") {
         console.log("User not found in Firebase Auth.");
-        userExists = false;
       } else {
         console.error("Error fetching user:", error);
         return NextResponse.json({ message: "Error checking user" }, { status: 500 });
       }
     }
 
-    if (!userExists) {
-      console.log("User not found in Firebase Auth. Checking Realtime Database...");
-      const usersRef = ref(rtdb, "users");
-      const snapshot = await get(usersRef);
+    console.log("Checking Realtime Database for user...");
+    const usersRef = ref(rtdb, "users");
+    const snapshot = await get(usersRef);
 
-      if (snapshot.exists()) {
-        console.log("User list retrieved from RTDB.");
-        const users = snapshot.val();
-        const updatedUsers = Object.values(users).filter((u) => u.email !== email);
+    if (snapshot.exists()) {
+      console.log("User list retrieved from RTDB.");
+      const users = snapshot.val();
 
-        if (updatedUsers.length !== Object.keys(users).length) {
-          await set(usersRef, updatedUsers);
-          console.log("User removed from Realtime Database.");
-        } else {
-          console.log("User was not found in Realtime Database.");
+      let userKeyToDelete = null;
+
+      // Find the key of the user
+      Object.entries(users).forEach(([key, user]) => {
+        if (user.email === email) {
+          userKeyToDelete = key;
         }
+      });
+
+      if (userKeyToDelete) {
+        const userToDeleteRef = ref(rtdb, `users/${userKeyToDelete}`);
+        await set(userToDeleteRef, null); // Deleting the user
+        console.log(`User with email ${email} removed from Realtime Database.`);
       } else {
-        console.log("No users found in RTDB.");
+        console.log("User was not found in Realtime Database.");
       }
     } else {
-      console.log("User exists in Firebase Auth, skipping RTDB removal.");
+      console.log("No users found in RTDB.");
+    }
+
+    // If user exists in Firebase Auth, delete them from Auth as well
+    if (userExists && uid) {
+      try {
+        await admin.auth().deleteUser(uid);
+        console.log(`User with email ${email} removed from Firebase Auth.`);
+      } catch (error) {
+        console.error("Error deleting user from Firebase Auth:", error);
+        return NextResponse.json({ message: "Error deleting user from Firebase Auth" }, { status: 500 });
+      }
     }
 
     return NextResponse.json({ message: `User ${email} processed successfully!` }, { status: 200 });
