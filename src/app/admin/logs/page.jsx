@@ -3,73 +3,29 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
-import { collection, query, where, orderBy, getDocs } from "firebase/firestore";
+import { collection, query, orderBy, getDocs } from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { ReloadIcon } from "@radix-ui/react-icons"; // Radix UI Spinner
-import formData from "form-data";
-import Mailgun from "mailgun.js";
+import { Input } from "@/components/ui/input";
+import { ReloadIcon } from "@radix-ui/react-icons";
 
 export default function EmailLogs() {
   const { user, loading, checkingAuth } = useAuth();
   const router = useRouter();
   const [logs, setLogs] = useState([]);
+  const [filteredLogs, setFilteredLogs] = useState([]);
   const [logsLoading, setLogsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [emailStatuses, setEmailStatuses] = useState({});
   const [refreshing, setRefreshing] = useState(false);
-
-  const mailgun = new Mailgun(formData);
-  const mg = mailgun.client({ username: "api", key: process.env.NEXT_PUBLIC_MAILGUN_API_KEY });
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     if (loading || checkingAuth) return;
-
-    if (!user) {
-      router.push("/");
-      return;
-    }
-
     fetchEmailLogs();
   }, [user, loading, checkingAuth, router]);
-
-  const fetchEmailLogs = async () => {
-    setRefreshing(true);
-    setLogsLoading(true);
-
-    try {
-      const sentEmailsQuery = query(
-        collection(db, "sentEmails"),
-        // where("sentBy", "==", user?.email),
-        orderBy("timestamp", "desc")
-      );
-
-      const snapshot = await getDocs(sentEmailsQuery);
-      const fetchedLogs = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        messageId: doc.data().messageId || null,
-        sentBy: doc.data().sentBy || "Unknown",
-        templateUsed: doc.data().templateUsed || "N/A",
-        companyName: doc.data().companyName || "N/A",
-        email: doc.data().email || "N/A",
-        timestamp: doc.data().timestamp || null,
-      }));
-
-      setLogs(fetchedLogs);
-
-      const messageIds = fetchedLogs.map((log) => log.messageId).filter(Boolean);
-      if (messageIds.length > 0) {
-        await fetchEmailStatuses(messageIds);
-      }
-    } catch (err) {
-      setError(err);
-    } finally {
-      setLogsLoading(false);
-      setRefreshing(false);
-    }
-  };
 
   const fetchEmailStatuses = async (messageIds) => {
     try {
@@ -100,6 +56,46 @@ export default function EmailLogs() {
     }
   };
 
+  const fetchEmailLogs = async () => {
+    setRefreshing(true);
+    setLogsLoading(true);
+    try {
+      const sentEmailsQuery = query(collection(db, "sentEmails"), orderBy("timestamp", "desc"));
+      const snapshot = await getDocs(sentEmailsQuery);
+      const fetchedLogs = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        messageId: doc.data().messageId || null,
+        sentBy: doc.data().sentBy || "Unknown",
+        templateUsed: doc.data().templateUsed || "N/A",
+        companyName: doc.data().companyName || "N/A",
+        email: doc.data().email || "N/A",
+        timestamp: doc.data().timestamp || null,
+      }));
+      setLogs(fetchedLogs);
+      setFilteredLogs(fetchedLogs);
+
+      const messageIds = fetchedLogs.map((log) => log.messageId).filter(Boolean);
+      if (messageIds.length > 0) {
+        await fetchEmailStatuses(messageIds);
+      }
+    } catch (err) {
+      setError(err);
+    } finally {
+      setLogsLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    const filtered = logs.filter(
+      (log) =>
+        log.sentBy.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        log.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        log.companyName.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    setFilteredLogs(filtered);
+  }, [searchQuery, logs]);
+
   if (logsLoading) {
     return <div className="flex justify-center items-center h-screen">Loading...</div>;
   }
@@ -118,9 +114,16 @@ export default function EmailLogs() {
               {refreshing ? <ReloadIcon className="animate-spin" /> : "Refresh"}
             </Button>
           </div>
+          <Input
+            type="text"
+            placeholder="Search by sender, recipient name, or email"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="mt-2"
+          />
         </CardHeader>
         <CardContent>
-          {logs.length > 0 ? (
+          {filteredLogs.length > 0 ? (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -133,7 +136,7 @@ export default function EmailLogs() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {logs.map((log) => (
+                {filteredLogs.map((log) => (
                   <TableRow key={log.id}>
                     <TableCell>{log.sentBy}</TableCell>
                     <TableCell>{log.templateUsed}</TableCell>
@@ -164,7 +167,7 @@ export default function EmailLogs() {
             </Table>
           ) : (
             <div className="text-center text-gray-500 p-4">
-              <p>Wow, look at that! A whole lot of... NOTHING. Maybe if you actually sent some emails instead of just chilling, this wouldn&apos;t be empty ¯\_(ツ)_/¯</p>
+              <p>No matching results found.</p>
             </div>
           )}
         </CardContent>
