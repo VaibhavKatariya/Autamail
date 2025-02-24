@@ -42,14 +42,14 @@ export default function SponsorEmailDashboard({ fromEmail }) {
       setIsDialogOpen(true);
       return;
     }
-
+  
     if (!template) {
       setDialogMessage("Please select an email template.");
       setDialogType("error");
       setIsDialogOpen(true);
       return;
     }
-
+  
     for (const entry of bulkEntries) {
       if (!entry.name || !entry.email || !validateEmail(entry.email)) {
         setDialogMessage("All fields must be filled with valid emails.");
@@ -58,43 +58,51 @@ export default function SponsorEmailDashboard({ fromEmail }) {
         return;
       }
     }
-
+  
     setIsSubmitting(true);
-    let templateNew = template === "A" ? "Sponsor's mail" : template === "B" ? "Chief's mail" : "Participant's mail";
-
+    let templateName = template === "A" ? "sponsor" : template === "B" ? "chief" : "participant"; // Template names in Mailgun
+  
     try {
       for (const entry of bulkEntries) {
+        // **Step 1: Store email log in Firestore**
         const sentEmailsRef = await addDoc(collection(db, "sentEmails"), {
           companyName: entry.name,
           email: entry.email,
-          templateUsed: templateNew,
+          templateUsed: templateName,
           sentBy: user.email,
           timestamp: new Date().toISOString(),
-          status: 202,
+          status: "pending",
         });
-
+  
+        const docId = sentEmailsRef.id; // Retrieve Firestore document ID
+  
+        // **Step 2: Send Email with Template**
         const response = await mg.messages.create(process.env.NEXT_PUBLIC_MAILGUN_DOMAIN, {
-          from: "admin@gdg-jiit.com",
+          from: "GDG JIIT admin@gdg-jiit.com",
           to: entry.email,
-          subject: `Your Subject Here for ${entry.name}`,
-          text: `Your email content here for ${entry.name}`,
+          subject: `Important Update for ${entry.name}`, // Subject (can be dynamic)
+          template: templateName, // Use the Mailgun template
+          "h:X-Mailgun-Variables": JSON.stringify({ name: entry.name }),
+          "v:docId": docId,
         });
-
-        await updateDoc(doc(db, "sentEmails", sentEmailsRef.id), { status: response.status === 200 ? 200 : 500 });
+  
+        console.log(response);
       }
-
-      setDialogMessage("Email sent successfully! Status is being processed.");
+  
+      setDialogMessage("Emails sent successfully! Status is being processed.");
       setDialogType("success");
     } catch (error) {
       setDialogMessage("Failed to send emails. Please try again.");
       setDialogType("error");
     }
-
+  
     setBulkEntries([]);
     setTemplate("");
     setIsDialogOpen(true);
     setIsSubmitting(false);
   };
+  
+  
 
   return (
     <div className="flex items-center justify-center w-full h-[calc(100vh-10vh)] p-4">
