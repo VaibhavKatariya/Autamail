@@ -9,6 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import formData from "form-data";
+import Mailgun from "mailgun.js";
 
 export default function ApproveUsers() {
   const { user, loading } = useAuth();
@@ -19,6 +21,7 @@ export default function ApproveUsers() {
 
   useEffect(() => {
     if (user) {
+      console.log(user)
       const membersRef = ref(rtdb, "members");
       const usersRef = ref(rtdb, "users");
 
@@ -31,6 +34,29 @@ export default function ApproveUsers() {
       });
     }
   }, [user]);
+
+  const sendApprovalEmail = async (email, name) => {
+    try {
+      const mailgun = new Mailgun(formData);
+      const mg = mailgun.client({
+        username: "api",
+        key: process.env.NEXT_PUBLIC_MAILGUN_API_KEY,
+        url: "https://api.eu.mailgun.net",
+      });
+
+      const response = await mg.messages.create(process.env.NEXT_PUBLIC_MAILGUN_DOMAIN, {
+        from: "GDG JIIT admin <admin@gdg-jiit.com>",
+        to: [email],
+        subject: "Access Approved",
+        text: `Hello ${name},\n\nYou have been approved to access the site. You can now log in and explore at:\n\n🔗 [GDG JIIT mail Portal](https://mailing.gdg-jiit.com/)\n\nBest regards,\n${user?.displayName}`,
+      });
+
+      console.log("Mailgun response:", response);
+    } catch (error) {
+      console.error("Error sending approval email:", error?.response?.body || error);
+    }
+  };
+
 
   const approveUser = async (member) => {
     try {
@@ -49,6 +75,9 @@ export default function ApproveUsers() {
         await set(usersRef, usersList);
         await remove(ref(rtdb, `members/${member.id}`));
         setMembers(members.filter((m) => m.id !== member.id));
+
+        // Send approval email
+        await sendApprovalEmail(member.email, member.name);
       }
     } catch (error) {
       console.error("Error approving user:", error);
