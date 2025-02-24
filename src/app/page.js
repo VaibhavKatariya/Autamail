@@ -17,6 +17,7 @@ import { auth, rtdb } from "@/lib/firebase";
 import { useSignInWithGoogle } from "react-firebase-hooks/auth";
 import { onAuthStateChanged, deleteUser, signOut, getIdTokenResult, getIdToken } from "firebase/auth";
 import { ref, get } from "firebase/database";
+import Link from "next/link";
 
 export default function HomePage() {
   const [signInWithGoogle, user, loading, error] = useSignInWithGoogle(auth);
@@ -106,7 +107,7 @@ export default function HomePage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Access Denied</AlertDialogTitle>
             <AlertDialogDescription>
-              You are not allowed to log in. Please get approval from the admin.
+              You are not allowed to log in. Please request approval <Link className="underline text-blue-500" href="/requestAccess">here</Link>.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
