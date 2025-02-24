@@ -7,6 +7,7 @@ import { collection, query, where, orderBy, getDocs } from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 import { ReloadIcon } from "@radix-ui/react-icons"; // Radix UI Spinner
 import formData from "form-data";
 import Mailgun from "mailgun.js";
@@ -17,7 +18,8 @@ export default function EmailLogs() {
   const [logs, setLogs] = useState([]);
   const [logsLoading, setLogsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [emailStatuses, setEmailStatuses] = useState({}); // Store only statuses for specific emails
+  const [emailStatuses, setEmailStatuses] = useState({});
+  const [refreshing, setRefreshing] = useState(false);
 
   const mailgun = new Mailgun(formData);
   const mg = mailgun.client({ username: "api", key: process.env.NEXT_PUBLIC_MAILGUN_API_KEY });
@@ -30,40 +32,44 @@ export default function EmailLogs() {
       return;
     }
 
-    const fetchEmailLogs = async () => {
-      try {
-        const sentEmailsQuery = query(
-          collection(db, "sentEmails"),
-          where("sentBy", "==", user.email),
-          orderBy("timestamp", "desc")
-        );
-
-        const snapshot = await getDocs(sentEmailsQuery);
-        const fetchedLogs = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          messageId: doc.data().messageId || null,
-          sentBy: doc.data().sentBy || "Unknown",
-          templateUsed: doc.data().templateUsed || "N/A",
-          companyName: doc.data().companyName || "N/A",
-          email: doc.data().email || "N/A",
-          timestamp: doc.data().timestamp || null,
-        }));
-
-        setLogs(fetchedLogs);
-
-        const messageIds = fetchedLogs.map((log) => log.messageId).filter(Boolean);
-        if (messageIds.length > 0) {
-          fetchEmailStatuses(messageIds);
-        }
-      } catch (err) {
-        setError(err);
-      } finally {
-        setLogsLoading(false);
-      }
-    };
-
     fetchEmailLogs();
   }, [user, loading, checkingAuth, router]);
+
+  const fetchEmailLogs = async () => {
+    setRefreshing(true);
+    setLogsLoading(true);
+
+    try {
+      const sentEmailsQuery = query(
+        collection(db, "sentEmails"),
+        where("sentBy", "==", user?.email),
+        orderBy("timestamp", "desc")
+      );
+
+      const snapshot = await getDocs(sentEmailsQuery);
+      const fetchedLogs = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        messageId: doc.data().messageId || null,
+        sentBy: doc.data().sentBy || "Unknown",
+        templateUsed: doc.data().templateUsed || "N/A",
+        companyName: doc.data().companyName || "N/A",
+        email: doc.data().email || "N/A",
+        timestamp: doc.data().timestamp || null,
+      }));
+
+      setLogs(fetchedLogs);
+
+      const messageIds = fetchedLogs.map((log) => log.messageId).filter(Boolean);
+      if (messageIds.length > 0) {
+        await fetchEmailStatuses(messageIds);
+      }
+    } catch (err) {
+      setError(err);
+    } finally {
+      setLogsLoading(false);
+      setRefreshing(false);
+    }
+  };
 
   const fetchEmailStatuses = async (messageIds) => {
     try {
@@ -106,7 +112,12 @@ export default function EmailLogs() {
     <div className="flex items-center justify-center w-full h-[calc(100vh-10vh)] p-4">
       <Card className="w-full max-w-4xl mx-auto">
         <CardHeader>
-          <CardTitle className="text-center">Email Logs</CardTitle>
+          <div className="flex justify-between items-center">
+            <CardTitle>Email Logs</CardTitle>
+            <Button onClick={fetchEmailLogs} disabled={refreshing}>
+              {refreshing ? <ReloadIcon className="animate-spin" /> : "Refresh"}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {logs.length > 0 ? (
