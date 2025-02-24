@@ -44,7 +44,8 @@ export default function HomePage() {
 
           if (snapshot.exists()) {
             const usersList = snapshot.val();
-            const userData = usersList.find((user) => user.email === currentUser.email);
+            const usersArray = Object.values(usersList); // Convert object to array
+            const userData = usersArray.find((user) => user.email === currentUser.email);
 
             if (userData) {
               const userRole = userData.role;
