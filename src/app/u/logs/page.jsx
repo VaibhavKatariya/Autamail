@@ -86,7 +86,7 @@ export default function EmailLogs() {
                     <TableCell>
                       <span
                         className="inline-block w-2.5 h-2.5 rounded-full mr-2"
-                        style={{ backgroundColor: log.status === 500 ? "red" : "cyan" }}
+                        style={{ backgroundColor: log.status === "pending" ? "yellow" : log.status === "failed" ? "red" : "cyan" }}
                       ></span>
                       {log.status || "N/A"}
                     </TableCell>
