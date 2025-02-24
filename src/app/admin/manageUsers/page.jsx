@@ -41,23 +41,35 @@ export default function UsersPage() {
 
   const handleDeleteUser = async () => {
     if (!selectedUser) return;
-
+  
     try {
-      const updatedUsers = users.filter((u) => u.email !== selectedUser.email);
-      await set(ref(rtdb, "users"), updatedUsers);
-
-      setAlertMessage(`User ${selectedUser.email} removed successfully!`);
+      const response = await fetch("/api/deleteUser", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email: selectedUser.email }),
+      });
+  
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message || "Failed to delete user");
+  
+      setAlertMessage(`User ${selectedUser.email} deleted successfully!`);
       setIsError(false);
+  
+      // Remove from local state
+      setUsers(users.filter((u) => u.email !== selectedUser.email));
     } catch (error) {
-      console.error("Error removing user:", error);
-      setAlertMessage("Failed to remove user. Please try again.");
+      console.error("Error deleting user:", error);
+      setAlertMessage(error.message || "Failed to delete user. Please try again.");
       setIsError(true);
     }
-
+  
     setDialogOpen(false);
     setAlertOpen(true);
     setSelectedUser(null);
   };
+  
 
   const handleRoleChange = async (email, role) => {
     try {

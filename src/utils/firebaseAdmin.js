@@ -14,4 +14,4 @@ if (!admin.apps.length) {
 const authAdmin = admin.auth(); 
 const rtdbAdmin = admin.database(); 
 
-export { authAdmin, rtdbAdmin };
+export { authAdmin, rtdbAdmin, admin };
