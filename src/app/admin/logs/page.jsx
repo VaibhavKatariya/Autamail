@@ -1,19 +1,15 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { db } from "@/lib/firebase";
-import { collection, query, orderBy, getDocs } from "firebase/firestore";
-import { useAuth } from "@/context/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ReloadIcon } from "@radix-ui/react-icons";
+import { getFirestore, collection, getDocs } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
 
 export default function EmailLogs() {
-  const { user, loading, checkingAuth } = useAuth();
-  const router = useRouter();
   const [logs, setLogs] = useState([]);
   const [filteredLogs, setFilteredLogs] = useState([]);
   const [logsLoading, setLogsLoading] = useState(true);
@@ -22,62 +18,23 @@ export default function EmailLogs() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  useEffect(() => {
-    if (loading || checkingAuth) return;
-    fetchEmailLogs();
-  }, [user, loading, checkingAuth, router]);
-
-  const fetchEmailStatuses = async (messageIds) => {
-    try {
-      const statuses = {};
-
-      for (const messageId of messageIds) {
-        const response = await fetch(
-          `https://api.eu.mailgun.net/v3/${process.env.NEXT_PUBLIC_MAILGUN_DOMAIN}/events?message-id=${messageId}&limit=1`,
-          {
-            method: "GET",
-            headers: {
-              Authorization: `Basic ${btoa(`api:${process.env.NEXT_PUBLIC_MAILGUN_API_KEY}`)}`,
-            },
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(`Mailgun API error: ${response.status}`);
-        }
-
-        const data = await response.json();
-        statuses[messageId] = data.items.length > 0 ? data.items[0].event : "Unknown";
-      }
-
-      setEmailStatuses(statuses);
-    } catch (error) {
-      console.error("Error fetching email statuses:", error);
-    }
-  };
-
   const fetchEmailLogs = async () => {
     setRefreshing(true);
     setLogsLoading(true);
+    setError(null);
+    
     try {
-      const sentEmailsQuery = query(collection(db, "sentEmails"), orderBy("timestamp", "desc"));
-      const snapshot = await getDocs(sentEmailsQuery);
-      const fetchedLogs = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        messageId: doc.data().messageId || null,
-        sentBy: doc.data().sentBy || "Unknown",
-        templateUsed: doc.data().templateUsed || "N/A",
-        companyName: doc.data().companyName || "N/A",
-        email: doc.data().email || "N/A",
-        timestamp: doc.data().timestamp || null,
-      }));
-      setLogs(fetchedLogs);
-      setFilteredLogs(fetchedLogs);
-
-      const messageIds = fetchedLogs.map((log) => log.messageId).filter(Boolean);
-      if (messageIds.length > 0) {
-        await fetchEmailStatuses(messageIds);
-      }
+      const auth = getAuth();
+      const user = auth.currentUser;
+      if (!user) throw new Error("User not authenticated");
+      
+      const db = getFirestore();
+      const emailsRef = collection(db, `users/${user.uid}/sentEmails`);
+      const snapshot = await getDocs(emailsRef);
+      
+      const emailLogs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setLogs(emailLogs);
+      setFilteredLogs(emailLogs);
     } catch (err) {
       setError(err);
     } finally {
@@ -87,18 +44,18 @@ export default function EmailLogs() {
   };
 
   useEffect(() => {
+    fetchEmailLogs();
+  }, []);
+
+  useEffect(() => {
     const filtered = logs.filter(
       (log) =>
-        log.sentBy.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        log.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        log.companyName.toLowerCase().includes(searchQuery.toLowerCase())
+        log.fromEmail.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        log.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        log.email.toLowerCase().includes(searchQuery.toLowerCase())
     );
     setFilteredLogs(filtered);
   }, [searchQuery, logs]);
-
-  if (logsLoading) {
-    return <div className="flex justify-center items-center h-screen">Loading...</div>;
-  }
 
   if (error) {
     return <div className="flex justify-center items-center h-screen">Error loading logs: {error.message}</div>;
@@ -139,9 +96,9 @@ export default function EmailLogs() {
                 <TableBody>
                   {filteredLogs.map((log) => (
                     <TableRow key={log.id}>
-                      <TableCell>{log.sentBy}</TableCell>
-                      <TableCell>{log.templateUsed}</TableCell>
-                      <TableCell>{log.companyName}</TableCell>
+                      <TableCell>{log.fromEmail}</TableCell>
+                      <TableCell>{log.template}</TableCell>
+                      <TableCell>{log.name}</TableCell>
                       <TableCell>{log.email}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
@@ -161,7 +118,7 @@ export default function EmailLogs() {
                           {emailStatuses[log.messageId] || "Checking..."}
                         </div>
                       </TableCell>
-                      <TableCell>{log.timestamp ? new Date(log.timestamp).toLocaleString() : "N/A"}</TableCell>
+                      <TableCell>{log.sentAt ? new Date(log.sentAt).toLocaleString() : "N/A"}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
