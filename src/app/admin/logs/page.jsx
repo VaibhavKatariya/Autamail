@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ReloadIcon } from "@radix-ui/react-icons";
-import { getFirestore, collection, getDocs } from "firebase/firestore";
+import { getFirestore, collection, getDocs, query, orderBy, limit, startAfter, startAt } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
 export default function EmailLogs() {
@@ -14,25 +14,52 @@ export default function EmailLogs() {
   const [filteredLogs, setFilteredLogs] = useState([]);
   const [logsLoading, setLogsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [emailStatuses, setEmailStatuses] = useState({});
-  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
 
-  const fetchEmailLogs = async () => {
+  const [lastDoc, setLastDoc] = useState(null);  // For pagination
+  const [firstDoc, setFirstDoc] = useState(null); // For previous page
+  const [prevDocs, setPrevDocs] = useState([]); // Stack of previous docs for back navigation
+  const [hasMore, setHasMore] = useState(true); // To check if more data exists
+
+  const fetchEmailLogs = async (next = false, prev = false) => {
     setRefreshing(true);
     setLogsLoading(true);
     setError(null);
-    
+
     try {
       const auth = getAuth();
       const user = auth.currentUser;
       if (!user) throw new Error("User not authenticated");
-      
+
       const db = getFirestore();
       const emailsRef = collection(db, `users/${user.uid}/sentEmails`);
-      const snapshot = await getDocs(emailsRef);
-      
-      const emailLogs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      let q;
+      const pageSize = 10;
+
+      if (next && lastDoc) {
+        q = query(emailsRef, orderBy("sentAt", "desc"), startAfter(lastDoc), limit(pageSize));
+      } else if (prev && prevDocs.length > 0) {
+        q = query(emailsRef, orderBy("sentAt", "desc"), startAt(prevDocs[prevDocs.length - 1]), limit(pageSize));
+        setPrevDocs(prevDocs.slice(0, -1)); // Remove last element from stack
+      } else {
+        q = query(emailsRef, orderBy("sentAt", "desc"), limit(pageSize));
+      }
+
+      const snapshot = await getDocs(q);
+
+      if (snapshot.docs.length > 0) {
+        setFirstDoc(snapshot.docs[0]); // Save first document for back navigation
+        setLastDoc(snapshot.docs[snapshot.docs.length - 1]); // Save last document for next page
+        setHasMore(snapshot.docs.length === pageSize);
+      } else {
+        setHasMore(false);
+      }
+
+      if (next) setPrevDocs([...prevDocs, firstDoc]); // Store previous pages
+
+      const emailLogs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       setLogs(emailLogs);
       setFilteredLogs(emailLogs);
     } catch (err) {
@@ -67,7 +94,7 @@ export default function EmailLogs() {
         <CardHeader>
           <div className="flex justify-between items-center">
             <CardTitle>Email Logs</CardTitle>
-            <Button onClick={fetchEmailLogs} disabled={refreshing}>
+            <Button onClick={() => fetchEmailLogs()} disabled={refreshing}>
               {refreshing ? <ReloadIcon className="animate-spin" /> : "Refresh"}
             </Button>
           </div>
@@ -106,18 +133,19 @@ export default function EmailLogs() {
                             className="inline-block w-2.5 h-2.5 rounded-full"
                             style={{
                               backgroundColor:
-                                emailStatuses[log.messageId] === "delivered"
+                                log.status === "delivered"
                                   ? "green"
-                                  : emailStatuses[log.messageId] === "failed"
+                                  : log.status === "failed"
                                     ? "red"
-                                    : emailStatuses[log.messageId] === "bounced"
+                                    : log.status === "bounced"
                                       ? "orange"
                                       : "gray",
                             }}
                           ></span>
-                          {emailStatuses[log.messageId] || "Checking..."}
+                          {log.status || "Checking..."}
                         </div>
                       </TableCell>
+
                       <TableCell>{log.sentAt ? new Date(log.sentAt).toLocaleString() : "N/A"}</TableCell>
                     </TableRow>
                   ))}
@@ -129,6 +157,15 @@ export default function EmailLogs() {
               </div>
             )}
           </CardContent>
+        </div>
+        {/* Pagination Buttons */}
+        <div className="flex justify-between p-4">
+          <Button onClick={() => fetchEmailLogs(false, true)} disabled={prevDocs.length === 0}>
+            Previous
+          </Button>
+          <Button onClick={() => fetchEmailLogs(true)} disabled={!hasMore}>
+            Next
+          </Button>
         </div>
       </Card>
     </div>
