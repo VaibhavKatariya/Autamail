@@ -8,10 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Trash2 } from "lucide-react";
 import { ReloadIcon } from "@radix-ui/react-icons";
-import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogAction } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { db } from "@/lib/firebase";
-import { collection, addDoc } from "firebase/firestore";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/firebase";
 import Mailgun from "mailgun.js";
@@ -48,7 +46,7 @@ export default function SponsorEmailDashboard({ fromEmail }) {
       setIsDialogOpen(true);
       return;
     }
-    
+
     if (bulkEntries.length === 0) {
       setDialogMessage("Please add at least one company/person to send emails to.");
       setDialogType("error");
@@ -63,6 +61,7 @@ export default function SponsorEmailDashboard({ fromEmail }) {
       return;
     }
 
+    // checking if all fields are filled and emails are valid
     for (const entry of bulkEntries) {
       if (!entry.name || !entry.email || !validateEmail(entry.email)) {
         setDialogMessage("All fields must be filled with valid emails.");
@@ -73,10 +72,13 @@ export default function SponsorEmailDashboard({ fromEmail }) {
     }
 
     setIsSubmitting(true);
+
     let templateName = template === "A" ? "sponsor" : template === "B" ? "chief" : "participant";
 
     try {
       for (const entry of bulkEntries) {
+
+        // Sending email
         const emailResponse = await mg.messages.create(process.env.NEXT_PUBLIC_MAILGUN_DOMAIN, {
           from: "GDG JIIT admin@gdg-jiit.com",
           to: entry.email,
@@ -84,16 +86,41 @@ export default function SponsorEmailDashboard({ fromEmail }) {
           "h:X-Mailgun-Variables": JSON.stringify({ name: entry.name }),
         });
 
-        const messageId = emailResponse.id.replace(/[<>]/g, "");
+        const messageId = emailResponse.id.replace(/[<>]/g, ""); 
 
-        await addDoc(collection(db, "sentEmails"), {
-          companyName: entry.name,
+        const data = {
           email: entry.email,
-          templateUsed: templateName,
-          sentBy: user.email,
-          timestamp: new Date().toISOString(),
+          name: entry.name,
+          template: templateName,
           messageId,
+          fromEmail,
+          sentAt: new Date().toISOString(),
           status: "pending",
+        }
+
+        const setGlobalLog = await fetch("/api/setEmailLog", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            collectionName: "sentEmails",
+            data: data
+          }),
+        });
+
+        const globalLogData = await setGlobalLog.json();
+
+        const setUserLog = await fetch("/api/setEmailLog", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            collectionName: "users/" + user.uid + "/sentEmails",
+            docId: globalLogData.id,
+            data: data
+          }),
         });
       }
 
