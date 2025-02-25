@@ -11,7 +11,7 @@ import { ReloadIcon } from "@radix-ui/react-icons";
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, updateDoc, doc } from "firebase/firestore";
+import { collection, addDoc } from "firebase/firestore";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/firebase";
 import Mailgun from "mailgun.js";
@@ -24,6 +24,7 @@ export default function SponsorEmailDashboard({ fromEmail }) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [dialogMessage, setDialogMessage] = useState("");
   const [dialogType, setDialogType] = useState("");
+  const [removingIndex, setRemovingIndex] = useState();
   const [user] = useAuthState(auth);
 
   const mailgun = new Mailgun(FormData);
@@ -33,11 +34,23 @@ export default function SponsorEmailDashboard({ fromEmail }) {
     url: "https://api.eu.mailgun.net",
   });
 
+  // Function to validate email
   const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
+  // Check if all emails are valid
+  const allEmailsValid = bulkEntries.every(entry => entry.email && validateEmail(entry.email));
+
+  // Function to handle bulk submission
   const handleBulkSubmit = async () => {
     if (!user) {
       setDialogMessage("You must be logged in to send emails.");
+      setDialogType("error");
+      setIsDialogOpen(true);
+      return;
+    }
+    
+    if (bulkEntries.length === 0) {
+      setDialogMessage("Please add at least one company/person to send emails to.");
       setDialogType("error");
       setIsDialogOpen(true);
       return;
@@ -60,11 +73,10 @@ export default function SponsorEmailDashboard({ fromEmail }) {
     }
 
     setIsSubmitting(true);
-    let templateName = template === "A" ? "sponsor" : template === "B" ? "chief" : "participant"; // Template names in Mailgun
+    let templateName = template === "A" ? "sponsor" : template === "B" ? "chief" : "participant";
 
     try {
       for (const entry of bulkEntries) {
-
         const emailResponse = await mg.messages.create(process.env.NEXT_PUBLIC_MAILGUN_DOMAIN, {
           from: "GDG JIIT admin@gdg-jiit.com",
           to: entry.email,
@@ -72,8 +84,7 @@ export default function SponsorEmailDashboard({ fromEmail }) {
           "h:X-Mailgun-Variables": JSON.stringify({ name: entry.name }),
         });
 
-        const messageId = emailResponse.id;
-        const cleanedMessageId = messageId.replace(/[<>]/g, "");
+        const messageId = emailResponse.id.replace(/[<>]/g, "");
 
         await addDoc(collection(db, "sentEmails"), {
           companyName: entry.name,
@@ -81,10 +92,9 @@ export default function SponsorEmailDashboard({ fromEmail }) {
           templateUsed: templateName,
           sentBy: user.email,
           timestamp: new Date().toISOString(),
-          messageId: cleanedMessageId,
+          messageId,
           status: "pending",
         });
-
       }
 
       setDialogMessage("Emails sent successfully! Status is being processed.");
@@ -110,31 +120,71 @@ export default function SponsorEmailDashboard({ fromEmail }) {
         <CardContent>
           <Tabs defaultValue="bulk" className="w-full">
             <TabsContent value="bulk">
-              <div className="space-y-4">
+              <div className="space-y-4 max-h-[400px] overflow-y-auto">
                 {bulkEntries.map((entry, index) => (
-                  <div key={index} className="space-y-2 border p-4 rounded-lg flex flex-col gap-2 relative">
-                    <Button onClick={() => setBulkEntries(bulkEntries.filter((_, i) => i !== index))} className="absolute top-2 right-2" variant="outline">
+                  <div
+                    key={index}
+                    className={`space-y-2 border p-4 rounded-lg flex flex-col gap-2 relative transition-opacity duration-300 ${removingIndex === index ? "opacity-0" : "opacity-100"
+                      }`}
+                  >
+                    <span>Entry {index + 1}</span>
+                    <Button
+                      onClick={() => {
+                        setRemovingIndex(index);
+                        setTimeout(() => {
+                          setBulkEntries(bulkEntries.filter((_, i) => i !== index));
+                          setRemovingIndex(null);
+                        }, 300); // Matches the duration of the CSS animation
+                      }}
+                      className="absolute top-2 right-2"
+                      variant="outline"
+                    >
                       <Trash2 size={16} />
                     </Button>
                     <Label>Company/Person Name</Label>
-                    <Input value={entry.name} onChange={(e) => setBulkEntries(bulkEntries.map((item, i) => i === index ? { ...item, name: e.target.value } : item))} placeholder="Company/Person Name" />
+                    <Input
+                      value={entry.name}
+                      onChange={(e) =>
+                        setBulkEntries(
+                          bulkEntries.map((item, i) =>
+                            i === index ? { ...item, name: e.target.value } : item
+                          )
+                        )
+                      }
+                      placeholder="Company/Person Name"
+                    />
                     <Label>Email</Label>
-                    <Input value={entry.email} onChange={(e) => setBulkEntries(bulkEntries.map((item, i) => i === index ? { ...item, email: e.target.value } : item))} type="email" placeholder="Person@example.com" />
+                    <Input
+                      value={entry.email}
+                      onChange={(e) =>
+                        setBulkEntries(
+                          bulkEntries.map((item, i) =>
+                            i === index ? { ...item, email: e.target.value } : item
+                          )
+                        )
+                      }
+                      type="email"
+                      placeholder="Person@example.com"
+                    />
+                    {!validateEmail(entry.email) && entry.email && (
+                      <p className="text-red-500 text-sm">Invalid email format</p>
+                    )}
                   </div>
                 ))}
+
                 <Button onClick={() => setBulkEntries([...bulkEntries, { name: "", email: "" }])} className="w-full">Add Company/Person</Button>
-                <Label>Select Email Template</Label>
+                <div className="mt-1"><Label>Select Email Template</Label></div>
                 <Select value={template} onValueChange={setTemplate}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select a template" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="A">Sponsor's mail</SelectItem>
-                    <SelectItem value="B">Chief's mail</SelectItem>
-                    <SelectItem value="C">Participant's mail</SelectItem>
+                    <SelectItem className="cursor-pointer" value="A">Sponsor's mail</SelectItem>
+                    <SelectItem className="cursor-pointer" value="B">Chief's mail</SelectItem>
+                    <SelectItem className="cursor-pointer" value="C">Participant's mail</SelectItem>
                   </SelectContent>
                 </Select>
-                <Button onClick={handleBulkSubmit} disabled={isSubmitting} className="w-full">
+                <Button onClick={handleBulkSubmit} disabled={isSubmitting || !allEmailsValid} className="w-full">
                   {isSubmitting ? <><ReloadIcon className="mr-2 h-4 w-4 animate-spin" /> Submitting...</> : "Send Email(s)"}
                 </Button>
               </div>

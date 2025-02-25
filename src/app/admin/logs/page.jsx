@@ -122,55 +122,57 @@ export default function EmailLogs() {
             className="mt-2"
           />
         </CardHeader>
-        <CardContent>
-          {filteredLogs.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Sender</TableHead>
-                  <TableHead>Template</TableHead>
-                  <TableHead>Recipient Name</TableHead>
-                  <TableHead>Recipient Email</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Date</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredLogs.map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell>{log.sentBy}</TableCell>
-                    <TableCell>{log.templateUsed}</TableCell>
-                    <TableCell>{log.companyName}</TableCell>
-                    <TableCell>{log.email}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="inline-block w-2.5 h-2.5 rounded-full"
-                          style={{
-                            backgroundColor:
-                              emailStatuses[log.messageId] === "delivered"
-                                ? "green"
-                                : emailStatuses[log.messageId] === "failed"
-                                ? "red"
-                                : emailStatuses[log.messageId] === "bounced"
-                                ? "orange"
-                                : "gray",
-                          }}
-                        ></span>
-                        {emailStatuses[log.messageId] || "Checking..."}
-                      </div>
-                    </TableCell>
-                    <TableCell>{log.timestamp ? new Date(log.timestamp).toLocaleString() : "N/A"}</TableCell>
+        <div className="max-h-[400px] overflow-y-auto">
+          <CardContent>
+            {filteredLogs.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Sender</TableHead>
+                    <TableHead>Template</TableHead>
+                    <TableHead>Recipient Name</TableHead>
+                    <TableHead>Recipient Email</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Date</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          ) : (
-            <div className="text-center text-gray-500 p-4">
-              <p>No matching results found.</p>
-            </div>
-          )}
-        </CardContent>
+                </TableHeader>
+                <TableBody>
+                  {filteredLogs.map((log) => (
+                    <TableRow key={log.id}>
+                      <TableCell>{log.sentBy}</TableCell>
+                      <TableCell>{log.templateUsed}</TableCell>
+                      <TableCell>{log.companyName}</TableCell>
+                      <TableCell>{log.email}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="inline-block w-2.5 h-2.5 rounded-full"
+                            style={{
+                              backgroundColor:
+                                emailStatuses[log.messageId] === "delivered"
+                                  ? "green"
+                                  : emailStatuses[log.messageId] === "failed"
+                                    ? "red"
+                                    : emailStatuses[log.messageId] === "bounced"
+                                      ? "orange"
+                                      : "gray",
+                            }}
+                          ></span>
+                          {emailStatuses[log.messageId] || "Checking..."}
+                        </div>
+                      </TableCell>
+                      <TableCell>{log.timestamp ? new Date(log.timestamp).toLocaleString() : "N/A"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <div className="text-center text-gray-500 p-4">
+                <p>No matching results found.</p>
+              </div>
+            )}
+          </CardContent>
+        </div>
       </Card>
     </div>
   );

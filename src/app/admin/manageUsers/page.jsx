@@ -42,7 +42,7 @@ export default function UsersPage() {
 
   const handleDeleteUser = async () => {
     if (!selectedUser) return;
-  
+
     try {
       const response = await fetch("/api/deleteUser", {
         method: "POST",
@@ -51,13 +51,13 @@ export default function UsersPage() {
         },
         body: JSON.stringify({ email: selectedUser.email }),
       });
-  
+
       const result = await response.json();
       if (!response.ok) throw new Error(result.message || "Failed to delete user");
-  
+
       setAlertMessage(`User ${selectedUser.email} deleted successfully!`);
       setIsError(false);
-  
+
       // Remove from local state
       setUsers(users.filter((u) => u.email !== selectedUser.email));
     } catch (error) {
@@ -65,12 +65,12 @@ export default function UsersPage() {
       setAlertMessage(error.message || "Failed to delete user. Please try again.");
       setIsError(true);
     }
-  
+
     setDialogOpen(false);
     setAlertOpen(true);
     setSelectedUser(null);
   };
-  
+
 
   const handleRoleChange = async (email, role) => {
     try {
@@ -119,43 +119,47 @@ export default function UsersPage() {
             <CardTitle className="text-center">Users List</CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {users.map((user, index) => (
-                  <TableRow key={index}>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell>
-                      <select
-                        value={user.role}
-                        style={{ backgroundColor: 'black', color: 'white', border: 'none', padding: '0.5rem', borderRadius: '4px' }}
-                        onChange={(e) => handleRoleChange(user.email, e.target.value)}
-                      >
-                        <option value="member">Member</option>
-                        <option value="admin">Admin</option>
-                      </select>
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="destructive"
-                        onClick={() => {
-                          setSelectedUser(user);
-                          setDialogOpen(true);
-                        }}
-                      >
-                        Remove
-                      </Button>
-                    </TableCell>
+            <div className="max-h-[400px] overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Index</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Action</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {users.map((user, index) => (
+                    <TableRow key={index}>
+                      <TableCell>{index + 1}</TableCell>
+                      <TableCell>{user.email}</TableCell>
+                      <TableCell>
+                        <select
+                          value={user.role}
+                          style={{ backgroundColor: 'black', color: 'white', border: 'none', padding: '0.5rem', borderRadius: '4px' }}
+                          onChange={(e) => handleRoleChange(user.email, e.target.value)}
+                        >
+                          <option value="member">Member</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="destructive"
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setDialogOpen(true);
+                          }}
+                        >
+                          Remove
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       </div>

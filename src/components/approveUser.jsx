@@ -112,9 +112,11 @@ export default function ApproveUsers() {
           {members.length === 0 ? (
             <div className="text-center text-gray-500">No users pending approval.</div>
           ) : (
+            <div className="max-h-[400px] overflow-y-auto">
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Index</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Enrollment No.</TableHead>
@@ -123,8 +125,9 @@ export default function ApproveUsers() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {members.map((member) => (
+                {members.map((member, index) => (
                   <TableRow key={member.id}>
+                    <TableCell>{index + 1}</TableCell>
                     <TableCell>{member.name}</TableCell>
                     <TableCell>{member.email}</TableCell>
                     <TableCell>{member.rollNumber}</TableCell>
@@ -137,6 +140,7 @@ export default function ApproveUsers() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>
