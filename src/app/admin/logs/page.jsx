@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ReloadIcon } from "@radix-ui/react-icons";
-import { getFirestore, collection, getDocs, query, orderBy, limit, startAfter, startAt } from "firebase/firestore";
+import { getFirestore, collection, getDocs, query, orderBy, limit, startAfter, startAt, doc, writeBatch } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
 export default function EmailLogs() {
@@ -17,11 +17,12 @@ export default function EmailLogs() {
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
 
-  const [lastDoc, setLastDoc] = useState(null);  // For pagination
-  const [firstDoc, setFirstDoc] = useState(null); // For previous page
-  const [prevDocs, setPrevDocs] = useState([]); // Stack of previous docs for back navigation
-  const [hasMore, setHasMore] = useState(true); // To check if more data exists
+  const [lastDoc, setLastDoc] = useState(null);
+  const [firstDoc, setFirstDoc] = useState(null);
+  const [prevDocs, setPrevDocs] = useState([]);
+  const [hasMore, setHasMore] = useState(true);
 
+  // Fetch email logs from Firestore
   const fetchEmailLogs = async (next = false, prev = false) => {
     setRefreshing(true);
     setLogsLoading(true);
@@ -33,16 +34,16 @@ export default function EmailLogs() {
       if (!user) throw new Error("User not authenticated");
 
       const db = getFirestore();
-      const emailsRef = collection(db, `users/${user.uid}/sentEmails`);
+      const emailsRef = collection(db, `sentEmails`);
 
       let q;
-      const pageSize = 10;
+      const pageSize = 1;
 
       if (next && lastDoc) {
         q = query(emailsRef, orderBy("sentAt", "desc"), startAfter(lastDoc), limit(pageSize));
       } else if (prev && prevDocs.length > 0) {
         q = query(emailsRef, orderBy("sentAt", "desc"), startAt(prevDocs[prevDocs.length - 1]), limit(pageSize));
-        setPrevDocs(prevDocs.slice(0, -1)); // Remove last element from stack
+        setPrevDocs(prevDocs.slice(0, -1));
       } else {
         q = query(emailsRef, orderBy("sentAt", "desc"), limit(pageSize));
       }
@@ -50,23 +51,104 @@ export default function EmailLogs() {
       const snapshot = await getDocs(q);
 
       if (snapshot.docs.length > 0) {
-        setFirstDoc(snapshot.docs[0]); // Save first document for back navigation
-        setLastDoc(snapshot.docs[snapshot.docs.length - 1]); // Save last document for next page
+        setFirstDoc(snapshot.docs[0]);
+        setLastDoc(snapshot.docs[snapshot.docs.length - 1]);
         setHasMore(snapshot.docs.length === pageSize);
       } else {
         setHasMore(false);
       }
 
-      if (next) setPrevDocs([...prevDocs, firstDoc]); // Store previous pages
+      if (next) setPrevDocs([...prevDocs, firstDoc]);
 
       const emailLogs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       setLogs(emailLogs);
       setFilteredLogs(emailLogs);
+
+      updateLogsStatus(emailLogs);
     } catch (err) {
       setError(err);
     } finally {
       setLogsLoading(false);
       setRefreshing(false);
+    }
+  };
+
+  // Fetch Mailgun status for a specific message ID
+  const fetchMailgunStatus = async (messageId) => {
+    const apiKey = process.env.NEXT_PUBLIC_MAILGUN_API_KEY;
+    const domain = process.env.NEXT_PUBLIC_MAILGUN_DOMAIN;
+    const url = `https://api.eu.mailgun.net/v3/${domain}/events?message-id=${messageId}`;
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        Authorization: `Basic ${btoa(`api:${apiKey}`)}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch status for message ID: ${messageId}`);
+    }
+
+    const data = await response.json();
+    return data.items[0]?.event || "unknown";
+  };
+
+  // Update logs with Mailgun statuses and patch Firestore
+  const updateLogsStatus = async (logs) => {
+    const logsToCheck = logs.filter((log) => log.status !== "failed" && log.status !== "delivered");
+
+    const statusPromises = logsToCheck.map(async (log) => {
+      try {
+        const newStatus = await fetchMailgunStatus(log.messageId);
+        return newStatus !== log.status ? { ...log, status: newStatus } : null;
+      } catch (error) {
+        console.error(error);
+        return null;
+      }
+    });
+
+    const updatedLogs = (await Promise.all(statusPromises)).filter(Boolean);
+
+    if (updatedLogs.length > 0) {
+      await patchUpdatedLogs(updatedLogs);
+    }
+
+    setLogs((prevLogs) =>
+      prevLogs.map((log) => {
+        const updatedLog = updatedLogs.find((ul) => ul.id === log.id);
+        return updatedLog ? updatedLog : log;
+      })
+    );
+  };
+
+  // Patch only modified logs to Firestore
+  const patchUpdatedLogs = async (logs) => {
+    try {
+      const db = getFirestore();
+      const auth = getAuth();
+      const user = auth.currentUser;
+
+      if (!user) {
+        throw new Error("User not authenticated");
+      }
+
+      const batch = writeBatch(db);
+
+      logs.forEach((log) => {
+        // Update global sentEmails collection
+        const globalDocRef = doc(db, "sentEmails", log.id);
+        batch.update(globalDocRef, { status: log.status });
+
+        // Update user-specific sentEmails subcollection
+        const userDocRef = doc(db, `users/${log.uid}/sentEmails`, log.id);
+        batch.update(userDocRef, { status: log.status });
+      });
+
+      await batch.commit();
+      console.log("Updated logs in both collections successfully");
+    } catch (error) {
+      console.error("Error updating logs:", error);
     }
   };
 
@@ -145,16 +227,13 @@ export default function EmailLogs() {
                           {log.status || "Checking..."}
                         </div>
                       </TableCell>
-
                       <TableCell>{log.sentAt ? new Date(log.sentAt).toLocaleString() : "N/A"}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             ) : (
-              <div className="text-center text-gray-500 p-4">
-                <p>No matching results found.</p>
-              </div>
+              <div className="text-center text-gray-500 p-4">No matching results found.</div>
             )}
           </CardContent>
         </div>

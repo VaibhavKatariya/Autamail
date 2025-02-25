@@ -96,6 +96,7 @@ export default function SponsorEmailDashboard({ fromEmail }) {
           fromEmail,
           sentAt: new Date().toISOString(),
           status: "pending",
+          uid: user.uid
         }
 
         const setGlobalLog = await fetch("/api/setEmailLog", {
