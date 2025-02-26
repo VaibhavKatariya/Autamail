@@ -17,6 +17,7 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/context/AuthContext";
+import AccessRequestFormSkeleton from "@/components/skeletonUI/requestAccessSkeleton";
 
 export default function AccessRequestForm() {
   const { user, loading, isAdmin, checkingAuth } = useAuth();
@@ -36,7 +37,7 @@ export default function AccessRequestForm() {
   }
 
   if (loading || checkingAuth) {
-    return <div className="flex justify-center items-center h-screen">Loading...</div>;
+    return <AccessRequestFormSkeleton />
   }
 
   const validateEmail = (email) => {

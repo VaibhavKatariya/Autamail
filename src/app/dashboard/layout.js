@@ -1,6 +1,7 @@
 'use client';
 
 import { AppSidebar } from "@/components/sidebar";
+import SendEmailFormSkeleton from "@/components/skeletonUI/sendEmailForm";
 import { Separator } from "@/components/ui/separator";
 import {
     SidebarInset,
@@ -19,13 +20,16 @@ export default function DashboardLayout({ children }) {
         // Redirect to home if not authenticated
         if (!loading && !checkingAuth && !user) {
             router.replace("/");
+            return
         }
     }, [user, loading, checkingAuth, router]);
 
     // Show loading state while checking authentication or user role
     if (loading || checkingAuth) {
-        return <div className="flex justify-center items-center h-screen">Loading...</div>;
+        return <SendEmailFormSkeleton />;
     }
+
+    if (!user) return null; // Redirect to home if not authenticated
 
     // Render the dashboard layout if authenticated
     return (
