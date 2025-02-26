@@ -31,16 +31,16 @@ export function AppSidebar({ authUser = { displayName: "", email: "", photo: "" 
         url: "/",
         items: [
           {
-            title: "Dashboard",
-            url: "/u/dashboard",
+            title: "Send Email",
+            url: "/dashboard",
           },
           {
             title: "Logs",
-            url: "/u/logs",
+            url: "/dashboard/logs",
           },
           {
             title: "Need Help?",
-            url: "/u/help",
+            url: "/dashboard/help",
           },
         ],
       },
@@ -52,20 +52,10 @@ export function AppSidebar({ authUser = { displayName: "", email: "", photo: "" 
     data.navMain[0].items.push(
       {
         title: "Manage Users",
-        url: "/admin/manageUsers",
+        url: "/dashboard/manageUsers",
       }
     );
   }
-
-  const handleNavClick = (url) => {
-    // Check if the user is admin and trying to access a user-specific route
-    if (isAdmin && url.startsWith('/u/')) {
-      const adminUrl = url.replace('/u/', '/admin/');
-      router.push(adminUrl); // Redirect to admin route
-    } else {
-      router.push(url); // Normal navigation for non-admin or other routes
-    }
-  };
 
   return (
     <Sidebar {...props}>
@@ -73,7 +63,6 @@ export function AppSidebar({ authUser = { displayName: "", email: "", photo: "" 
         <VersionSwitcher versions={data.versions} defaultVersion={data.versions[0]} />
       </SidebarHeader>
       <SidebarContent>
-        {/* Sidebar Navigation */}
         {data.navMain.map((item) => (
           <SidebarGroup key={item.title}>
             <SidebarGroupLabel>{item.title}</SidebarGroupLabel>
@@ -82,7 +71,7 @@ export function AppSidebar({ authUser = { displayName: "", email: "", photo: "" 
                 {item.items.map((navItem) => (
                   <SidebarMenuItem key={navItem.title}>
                     <SidebarMenuButton asChild>
-                      <button onClick={() => handleNavClick(navItem.url)}>{navItem.title}</button>
+                      <button onClick={() => router.push(navItem.url)}>{navItem.title}</button>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
