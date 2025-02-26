@@ -24,6 +24,11 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
+      <link
+        rel="icon"
+        type="image/png"
+        href="https://icons.iconarchive.com/icons/dtafalonso/win-10x/128/Email-icon.png"
+      />
       <body
         className={`${geistSans.variable} dark text-white ${geistMono.variable} antialiased`}
       >
