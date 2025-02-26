@@ -34,11 +34,6 @@ export default function HomePage() {
           const tokenResult = await getIdTokenResult(currentUser);
           const role = tokenResult.claims.role || null;
 
-          if (role === "admin") {
-            router.push("/admin/dashboard");
-            return;
-          }
-
           const usersRef = ref(rtdb, "users");
           const snapshot = await get(usersRef);
 
@@ -59,7 +54,7 @@ export default function HomePage() {
                 await getIdToken(currentUser, true);
               }
 
-              router.push("/u/dashboard");
+              router.push("/dashboard");
             } else {
               setShowAlert(true);
               await signOut(auth);
