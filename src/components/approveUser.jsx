@@ -45,10 +45,10 @@ export default function ApproveUsers() {
       });
 
       const response = await mg.messages.create(process.env.NEXT_PUBLIC_MAILGUN_DOMAIN, {
-        from: "GDG JIIT admin <admin@gdg-jiit.com>",
+        from: "GDG JIIT Admin <admin@gdg-jiit.com>",
         to: [email],
-        subject: "Access Approved",
-        text: `Hello ${name},\n\nYou have been approved to access the site. You can now log in and explore at:\n\n🔗 [GDG JIIT mail Portal](https://mailing.gdg-jiit.com/)\n\nBest regards,\n${user?.displayName}`,
+        subject: "Access Approved: GDG JIIT Admin Portal",
+        text: `Hello ${name},\n\nYou have been approved to access the site. You can now log in and explore at:\n\n🔗 [GDG JIIT Mail Portal](https://mailing.gdg-jiit.com/)\n\nBest regards,\n${user?.displayName} (Admin @ GDG Mailing Portal)`,
       });
 
       console.log("Mailgun response:", response);
