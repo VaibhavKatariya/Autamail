@@ -1,6 +1,6 @@
 'use client';
 
-import { AppSidebar } from "@/components/App-sidebar";
+import { AppSidebar } from "@/components/sidebar";
 import { Separator } from "@/components/ui/separator";
 import {
     SidebarInset,

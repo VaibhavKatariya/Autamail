@@ -15,11 +15,11 @@ import {
   AlertDialogDescription,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
-import AdminDashboard from "@/components/admin-dashboard";
+import AdminDashboard from "@/components/addUser";
 import ApproveUsers from "@/components/approveUser";
 
 export default function UsersPage() {
-  const { user, loading, checkingAuth } = useAuth();
+  const { user, isAdmin, loading, checkingAuth } = useAuth();
   const router = useRouter();
   const [users, setUsers] = useState([]);
   const [dataLoading, setDataLoading] = useState(true);
@@ -29,8 +29,14 @@ export default function UsersPage() {
   const [isError, setIsError] = useState(false);
   const [alertOpen, setAlertOpen] = useState(false);
 
+  if (!isAdmin) {
+    router.replace("/dashboard");
+    return;
+  }
+
   useEffect(() => {
-    if (user) {
+
+    if (isAdmin) {
       const usersRef = ref(rtdb, "users");
       onValue(usersRef, (snapshot) => {
         const data = snapshot.val();
@@ -58,7 +64,6 @@ export default function UsersPage() {
       setAlertMessage(`User ${selectedUser.email} deleted successfully!`);
       setIsError(false);
 
-      // Remove from local state
       setUsers(users.filter((u) => u.email !== selectedUser.email));
     } catch (error) {
       console.error("Error deleting user:", error);

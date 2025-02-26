@@ -16,7 +16,7 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 
-export default function AdminDashboard() {
+export default function AddUser() {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("member"); // Default role
   const [isSubmitting, setIsSubmitting] = useState(false);
