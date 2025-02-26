@@ -255,7 +255,7 @@ export default function EmailLogs({collectionPath}) {
                 </TableBody>
               </Table>
             ) : (
-              <div className="text-center text-gray-500 p-4">No matching results found.</div>
+              <div className="text-center text-gray-500 p-4">Wow, look at that! A whole lot of... NOTHING. Maybe if you actually sent some emails instead of just chilling, this wouldn&apos;t be empty ¯\_(ツ)_/¯</div>
             )}
           </CardContent>
         </div>
