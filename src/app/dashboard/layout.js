@@ -7,24 +7,27 @@ import {
     SidebarProvider,
     SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext"; // Import useAuth
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 export default function DashboardLayout({ children }) {
-    const { user, loading, checkingAuth } = useAuth();
+    const { user, loading, checkingAuth } = useAuth(); // Use the hook
     const router = useRouter();
 
     useEffect(() => {
+        // Redirect to home if not authenticated
         if (!loading && !checkingAuth && !user) {
-            router.replace("/"); // Redirect to home if not logged in
+            router.replace("/");
         }
     }, [user, loading, checkingAuth, router]);
 
+    // Show loading state while checking authentication or user role
     if (loading || checkingAuth) {
         return <div className="flex justify-center items-center h-screen">Loading...</div>;
     }
 
+    // Render the dashboard layout if authenticated
     return (
         <div className="dark text-white">
             <SidebarProvider>
@@ -35,9 +38,7 @@ export default function DashboardLayout({ children }) {
                         <Separator orientation="vertical" className="mr-2 h-4" />
                     </header>
                     <main>
-                        <AuthProvider>
-                            {children}
-                        </AuthProvider>
+                        {children}
                     </main>
                 </SidebarInset>
             </SidebarProvider>

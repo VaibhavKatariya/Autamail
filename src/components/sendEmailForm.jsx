@@ -15,7 +15,7 @@ import { auth } from "@/lib/firebase";
 import Mailgun from "mailgun.js";
 import FormData from "form-data";
 
-export default function SponsorEmailDashboard({ fromEmail }) {
+export default function SendEmailForm({ fromEmail }) {
   const [template, setTemplate] = useState("");
   const [bulkEntries, setBulkEntries] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
