@@ -8,6 +8,10 @@ import { Input } from "@/components/ui/input";
 import { ReloadIcon } from "@radix-ui/react-icons";
 import { getFirestore, collection, getDocs, query, orderBy, limit, startAfter, startAt, doc, writeBatch } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
+import { CopyIcon } from "lucide-react";
+import { toast } from "sonner";
+import Loading from "./loading";
+
 
 export default function EmailLogs() {
   const [logs, setLogs] = useState([]);
@@ -37,7 +41,7 @@ export default function EmailLogs() {
       const emailsRef = collection(db, `sentEmails`);
 
       let q;
-      const pageSize = 1;
+      const pageSize = 10;
 
       if (next && lastDoc) {
         q = query(emailsRef, orderBy("sentAt", "desc"), startAfter(lastDoc), limit(pageSize));
@@ -75,6 +79,7 @@ export default function EmailLogs() {
 
   // Fetch Mailgun status for a specific message ID
   const fetchMailgunStatus = async (messageId) => {
+    console.log("fetching status for message ID:", messageId);
     const apiKey = process.env.NEXT_PUBLIC_MAILGUN_API_KEY;
     const domain = process.env.NEXT_PUBLIC_MAILGUN_DOMAIN;
     const url = `https://api.eu.mailgun.net/v3/${domain}/events?message-id=${messageId}`;
@@ -170,6 +175,10 @@ export default function EmailLogs() {
     return <div className="flex justify-center items-center h-screen">Error loading logs: {error.message}</div>;
   }
 
+  if(logsLoading) {
+    return <Loading/>
+  }
+
   return (
     <div className="flex items-center justify-center w-full h-[calc(100vh-10vh)] p-4">
       <Card className="w-full max-w-4xl mx-auto">
@@ -200,6 +209,7 @@ export default function EmailLogs() {
                     <TableHead>Recipient Email</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Date</TableHead>
+                    <TableHead>Copy ID</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -228,6 +238,17 @@ export default function EmailLogs() {
                         </div>
                       </TableCell>
                       <TableCell>{log.sentAt ? new Date(log.sentAt).toLocaleString() : "N/A"}</TableCell>
+                      <TableCell>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(log.id);
+                            toast.success("Message ID copied!");
+                          }}
+                          className="p-1 hover:bg-gray-200 rounded-md transition"
+                        >
+                          <CopyIcon className="w-4 h-4 text-gray-600" />
+                        </button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
