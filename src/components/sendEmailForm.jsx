@@ -14,6 +14,8 @@ import { useAuthState } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/firebase";
 import Mailgun from "mailgun.js";
 import FormData from "form-data";
+import { collection, getDocs, query, where } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 export default function SendEmailForm({ fromEmail }) {
   const [template, setTemplate] = useState("");
@@ -38,7 +40,48 @@ export default function SendEmailForm({ fromEmail }) {
   // Check if all emails are valid
   const allEmailsValid = bulkEntries.every(entry => entry.email && validateEmail(entry.email));
 
-  // Function to handle bulk submission
+  // Global set to store already sent emails
+  let alreadySentEmails = new Set();
+
+  const checkEmailsBeforeSending = async (entries) => {
+    setIsDialogOpen(true);
+    setDialogMessage("Checking emails...");
+
+    const emailsToCheck = entries.map(entry => entry.email.toLowerCase());
+
+    try {
+      const q = query(collection(db, "sentEmails"), where("email", "in", emailsToCheck));
+      const querySnapshot = await getDocs(q);
+
+      querySnapshot.forEach((doc) => {
+        alreadySentEmails.add(doc.data().email.toLowerCase());
+      });
+
+      let filteredEntries = entries.filter(entry => !alreadySentEmails.has(entry.email));
+
+      let logMessages = entries.map(entry =>
+        alreadySentEmails.has(entry.email)
+          ? `❌ email to ${entry.email} was already sent. Skipping.`
+          : `✅ ${entry.email} is not sent yet.`
+      );
+
+      setDialogMessage(logMessages.join("\n"));
+
+      if (filteredEntries.length === 0) {
+        setDialogType("error");
+        return [];
+      }
+
+      setDialogType("success");
+      return filteredEntries;
+    } catch (error) {
+      console.error("Error checking emails: ", error);
+      setDialogMessage("Error checking emails. Try again.");
+      setDialogType("error");
+      return [];
+    }
+  };
+
   const handleBulkSubmit = async () => {
     if (!user) {
       setDialogMessage("You must be logged in to send emails.");
@@ -48,7 +91,7 @@ export default function SendEmailForm({ fromEmail }) {
     }
 
     if (bulkEntries.length === 0) {
-      setDialogMessage("Please add at least one company/person to send emails to.");
+      setDialogMessage("Please add at least one recipient.");
       setDialogType("error");
       setIsDialogOpen(true);
       return;
@@ -61,72 +104,63 @@ export default function SendEmailForm({ fromEmail }) {
       return;
     }
 
-    // checking if all fields are filled and emails are valid
-    for (const entry of bulkEntries) {
-      if (!entry.name || !entry.email || !validateEmail(entry.email)) {
-        setDialogMessage("All fields must be filled with valid emails.");
-        setDialogType("error");
-        setIsDialogOpen(true);
-        return;
-      }
-    }
-
     setIsSubmitting(true);
 
-    let templateName = template === "A" ? "sponsor" : template === "B" ? "chief" : "participant";
+    const unsentEntries = await checkEmailsBeforeSending(bulkEntries);
+    if (unsentEntries.length === 0) {
+      setIsSubmitting(false);
+      return;
+    }
 
     try {
-      for (const entry of bulkEntries) {
-
-        // Sending email
+      for (const entry of unsentEntries) {
         const emailResponse = await mg.messages.create(process.env.NEXT_PUBLIC_MAILGUN_DOMAIN, {
           from: "GDG JIIT admin@gdg-jiit.com",
-          to: entry.email,
-          template: templateName,
+          to: entry.email.toLowerCase(),
+          template: template,
           "h:X-Mailgun-Variables": JSON.stringify({ name: entry.name }),
         });
 
-        const messageId = emailResponse.id.replace(/[<>]/g, ""); 
+        const messageId = emailResponse.id.replace(/[<>]/g, "");
 
         const data = {
-          email: entry.email,
+          email: entry.email.toLowerCase(),
           name: entry.name,
-          template: templateName,
+          template,
           messageId,
           fromEmail,
           sentAt: new Date().toISOString(),
           status: "pending",
-          uid: user.uid
-        }
+          uid: user.uid,
+        };
 
         const setGlobalLog = await fetch("/api/setEmailLog", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            collectionName: "sentEmails",
-            data: data
-          }),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ collectionName: "sentEmails", data }),
         });
 
         const globalLogData = await setGlobalLog.json();
 
-        const setUserLog = await fetch("/api/setEmailLog", {
+        await fetch("/api/setEmailLog", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            collectionName: "users/" + user.uid + "/sentEmails",
-            docId: globalLogData.id,
-            data: data
-          }),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({docId: globalLogData.id, collectionName: `users/${user.uid}/sentEmails`, data }),
         });
       }
 
-      setDialogMessage("Emails sent successfully! Status is being processed.");
-      setDialogType("success");
+      let failedEmails = bulkEntries
+        .filter(entry => alreadySentEmails.has(entry.email))
+        .map(entry => entry.email);
+
+      if (failedEmails.length > 0) {
+        setDialogMessage(`Some emails were not sent:\n\n${failedEmails.join("\n")} ❌ \n\nOther emails are being processed.`);
+        setDialogType("warning");
+      } else {
+        setDialogMessage("All emails sent successfully!");
+        setDialogType("success");
+      }
+
     } catch (error) {
       setDialogMessage("Failed to send emails. Please try again.");
       setDialogType("error");
@@ -137,6 +171,8 @@ export default function SendEmailForm({ fromEmail }) {
     setIsDialogOpen(true);
     setIsSubmitting(false);
   };
+
+
 
   return (
     <div className="flex items-center justify-center w-full h-[calc(100vh-10vh)] p-4">
@@ -187,7 +223,7 @@ export default function SendEmailForm({ fromEmail }) {
                       onChange={(e) =>
                         setBulkEntries(
                           bulkEntries.map((item, i) =>
-                            i === index ? { ...item, email: e.target.value } : item
+                            i === index ? { ...item, email: e.target.value.toLowerCase() } : item
                           )
                         )
                       }
@@ -207,9 +243,9 @@ export default function SendEmailForm({ fromEmail }) {
                     <SelectValue placeholder="Select a template" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem className="cursor-pointer" value="A">Sponsor's mail</SelectItem>
-                    <SelectItem className="cursor-pointer" value="B">Chief's mail</SelectItem>
-                    <SelectItem className="cursor-pointer" value="C">Participant's mail</SelectItem>
+                    <SelectItem className="cursor-pointer" value="Sponsor">Sponsor's mail</SelectItem>
+                    <SelectItem className="cursor-pointer" value="Chief">Chief's mail</SelectItem>
+                    <SelectItem className="cursor-pointer" value="Participant">Participant's mail</SelectItem>
                   </SelectContent>
                 </Select>
                 <Button onClick={handleBulkSubmit} disabled={isSubmitting || !allEmailsValid} className="w-full">
