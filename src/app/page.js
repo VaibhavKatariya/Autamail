@@ -39,7 +39,7 @@ export default function HomePage() {
 
           if (snapshot.exists()) {
             const usersList = snapshot.val();
-            const usersArray = Object.values(usersList); // Convert object to array
+            const usersArray = Object.values(usersList); 
             const userData = usersArray.find((user) => user.email === currentUser.email);
 
             if (userData) {
@@ -55,6 +55,7 @@ export default function HomePage() {
               }
 
               router.push("/dashboard");
+              return;
             } else {
               setShowAlert(true);
               await signOut(auth);
@@ -80,18 +81,10 @@ export default function HomePage() {
     }
   };
 
-  if (authChecking) {
+  if (authChecking || loadingVerification) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-black text-white">
-        Checking authentication...
-      </div>
-    );
-  }
-
-  if (loadingVerification) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-black text-white">
-        Verifying your access...
+        {authChecking ? "Checking authentication..." : "Verifying your access..."}
       </div>
     );
   }
@@ -103,7 +96,11 @@ export default function HomePage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Access Denied</AlertDialogTitle>
             <AlertDialogDescription>
-              You are not allowed to log in. Please request approval <Link className="underline text-blue-500" href="/requestAccess">here</Link>.
+              You are not allowed to log in. Please request approval{" "}
+              <Link className="underline text-blue-500" href="/requestAccess">
+                here
+              </Link>
+              .
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -112,25 +109,27 @@ export default function HomePage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <div className="flex min-h-screen items-center justify-center bg-black">
-        <Card className="w-[350px] bg-zinc-900 text-white border-zinc-800">
-          <CardHeader>
-            <CardTitle className="text-2xl font-bold text-center">Welcome</CardTitle>
-            <CardDescription className="text-zinc-400 text-center">Sign in to your account</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button
-              className="w-full bg-white hover:bg-zinc-200 text-black"
-              size="lg"
-              onClick={handleGoogleSignIn}
-              disabled={loading}
-            >
-              {loading ? "Signing in..." : "Login with Google"}
-            </Button>
-            {error && <p className="text-red-500 text-center mt-2">{error.message}</p>}
-          </CardContent>
-        </Card>
-      </div>
+      {!user && (
+        <div className="flex min-h-screen items-center justify-center bg-black">
+          <Card className="w-[350px] bg-zinc-900 text-white border-zinc-800">
+            <CardHeader>
+              <CardTitle className="text-2xl font-bold text-center">Welcome</CardTitle>
+              <CardDescription className="text-zinc-400 text-center">Sign in to your account</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button
+                className="w-full bg-white hover:bg-zinc-200 text-black"
+                size="lg"
+                onClick={handleGoogleSignIn}
+                disabled={loading}
+              >
+                {loading ? "Signing in..." : "Login with Google"}
+              </Button>
+              {error && <p className="text-red-500 text-center mt-2">{error.message}</p>}
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </>
   );
 }
