@@ -8,11 +8,9 @@ import { useEffect } from "react";
 
 export default function Page() {
   const { user, loading, isAdmin, checkingAuth } = useAuth();
-
+  const router = useRouter();
   
-  useEffect(() => {
-    if (!user) return router.replace("/");
-  }, [user]);
+  if (!user) return router.replace("/");
 
   if (loading || checkingAuth) return <LogsLoading />;
 
