@@ -10,10 +10,10 @@ import { getFirestore, collection, getDocs, query, orderBy, limit, startAfter, s
 import { getAuth } from "firebase/auth";
 import { CopyIcon } from "lucide-react";
 import { toast } from "sonner";
-import Loading from "./loading";
+import Loading from "@/components/skeletonUI/logsLoading";
 
 
-export default function EmailLogs() {
+export default function EmailLogs({collectionPath}) {
   const [logs, setLogs] = useState([]);
   const [filteredLogs, setFilteredLogs] = useState([]);
   const [logsLoading, setLogsLoading] = useState(true);
@@ -37,8 +37,9 @@ export default function EmailLogs() {
       const user = auth.currentUser;
       if (!user) throw new Error("User not authenticated");
 
+      // fetch logs from firestore
       const db = getFirestore();
-      const emailsRef = collection(db, `sentEmails`);
+      const emailsRef = collection(db, collectionPath);
 
       let q;
       const pageSize = 10;
