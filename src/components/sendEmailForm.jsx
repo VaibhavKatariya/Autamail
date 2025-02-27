@@ -16,6 +16,7 @@ import Mailgun from "mailgun.js";
 import FormData from "form-data";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import Papa from "papaparse";
 
 export default function SendEmailForm({ fromEmail }) {
   const [template, setTemplate] = useState("");
@@ -34,13 +35,9 @@ export default function SendEmailForm({ fromEmail }) {
     url: "https://api.eu.mailgun.net",
   });
 
-  // Function to validate email
   const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-
-  // Check if all emails are valid
   const allEmailsValid = bulkEntries.every(entry => entry.email && validateEmail(entry.email));
 
-  // Global set to store already sent emails
   let alreadySentEmails = new Set();
 
   const checkEmailsBeforeSending = async (entries) => {
@@ -80,6 +77,45 @@ export default function SendEmailForm({ fromEmail }) {
       setDialogType("error");
       return [];
     }
+  };
+
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: function (results) {
+        if (results.errors.length > 0) {
+          setDialogMessage("Error parsing CSV file. Please check the file format.");
+          setDialogType("error");
+          setIsDialogOpen(true);
+          return;
+        }
+
+        const parsedEntries = results.data.map((row) => ({
+          name: row.Name || "",
+          email: row.Email?.toLowerCase() || "",
+        }));
+
+        const validEntries = parsedEntries.filter((entry) => validateEmail(entry.email));
+
+        if (validEntries.length === 0) {
+          setDialogMessage("No valid emails found in the CSV.");
+          setDialogType("error");
+          setIsDialogOpen(true);
+          return;
+        }
+
+        setBulkEntries(validEntries);
+      },
+      error: function (error) {
+        setDialogMessage("Error reading CSV file. Please try again.");
+        setDialogType("error");
+        setIsDialogOpen(true);
+      },
+    });
   };
 
   const handleBulkSubmit = async () => {
@@ -145,7 +181,7 @@ export default function SendEmailForm({ fromEmail }) {
         await fetch("/api/setEmailLog", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({docId: globalLogData.id, collectionName: `users/${user.uid}/sentEmails`, data }),
+          body: JSON.stringify({ docId: globalLogData.id, collectionName: `users/${user.uid}/sentEmails`, data }),
         });
       }
 
@@ -172,8 +208,6 @@ export default function SendEmailForm({ fromEmail }) {
     setIsSubmitting(false);
   };
 
-
-
   return (
     <div className="flex items-center justify-center w-full h-[calc(100vh-10vh)] p-4">
       <Card className="w-full max-w-xl mx-auto">
@@ -185,6 +219,11 @@ export default function SendEmailForm({ fromEmail }) {
           <Tabs defaultValue="bulk" className="w-full">
             <TabsContent value="bulk">
               <div className="space-y-4 max-h-[400px] overflow-y-auto">
+                <div className="mb-4">
+                  <Label>Upload CSV File</Label>
+                  <Input type="file" accept=".csv" onChange={handleFileUpload} />
+                </div>
+                {bulkEntries.length === 0 && <Label className="text-center block">OR</Label>}
                 {bulkEntries.map((entry, index) => (
                   <div
                     key={index}
