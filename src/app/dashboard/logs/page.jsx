@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import AdvancedSearch from "@/components/AdvanceEmailLog"; 
+import AdvancedSearch from "@/components/AdvanceEmailLog";
 import EmailLogs from "@/components/EmailLogs";
 import EmailLogsResult from "@/components/EmailLogsResult";
 import LogsLoading from "@/components/skeletonUI/logsLoading";
@@ -23,8 +23,8 @@ export default function Page() {
 
   if (loading || checkingAuth) return <LogsLoading />;
 
-  if (!user) return null; 
-  
+  if (!user) return null;
+
   const collectionPath = isAdmin ? "sentEmails" : `users/${user.uid}/sentEmails`;
 
   return (
@@ -41,7 +41,7 @@ export default function Page() {
           {!userData ? (
             <AdvancedSearch onUserFound={setUserData} />
           ) : (
-            <EmailLogsResult uid={userData.uid} userData={userData} />
+            <EmailLogsResult uid={userData.uid} userData={userData} onBack={() => setUserData(null)} />
           )}
         </TabsContent>
       </Tabs>

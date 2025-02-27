@@ -11,7 +11,7 @@ import { CopyIcon } from "lucide-react";
 import { toast } from "sonner";
 import Loading from "@/components/skeletonUI/logsLoading";
 
-export default function EmailLogsResult({ uid, userData }) {
+export default function EmailLogsResult({ uid, userData, onBack }) {
   const [logs, setLogs] = useState([]);
   const [filteredLogs, setFilteredLogs] = useState([]);
   const [logsLoading, setLogsLoading] = useState(false);
@@ -99,9 +99,14 @@ export default function EmailLogsResult({ uid, userData }) {
         <CardHeader>
           <div className="flex justify-between items-center">
             <CardTitle>Email Logs for {userData.name} ({userData.rollNumber})</CardTitle>
-            <Button onClick={() => fetchEmailLogs()} disabled={refreshing}>
-              {refreshing ? <ReloadIcon className="animate-spin" /> : "Refresh"}
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={onBack}>
+                Back
+              </Button>
+              <Button onClick={() => fetchEmailLogs()} disabled={refreshing}>
+                {refreshing ? <ReloadIcon className="animate-spin" /> : "Refresh"}
+              </Button>
+            </div>
           </div>
           <Input
             type="text"
