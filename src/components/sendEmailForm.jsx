@@ -221,7 +221,7 @@ export default function SendEmailForm({ fromEmail }) {
               <div className="space-y-4 max-h-[400px] overflow-y-auto">
                 <div className="mb-4">
                   <Label>Upload CSV File</Label>
-                  <Input type="file" accept=".csv" onChange={handleFileUpload} />
+                  <Input className="cursor-pointer" type="file" accept=".csv" onChange={handleFileUpload} />
                 </div>
                 {bulkEntries.length === 0 && <Label className="text-center block">OR</Label>}
                 {bulkEntries.map((entry, index) => (

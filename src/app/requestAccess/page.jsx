@@ -34,6 +34,7 @@ export default function AccessRequestForm() {
 
   if (user) {
     router.replace("/");
+    return null;
   }
 
   if (loading || checkingAuth) {
