@@ -13,10 +13,11 @@ import {
   AlertDialogFooter,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
-import { auth, rtdb } from "@/lib/firebase";
+import { auth, rtdb, db } from "@/lib/firebase";
 import { useSignInWithGoogle } from "react-firebase-hooks/auth";
 import { onAuthStateChanged, deleteUser, signOut, getIdTokenResult, getIdToken } from "firebase/auth";
 import { ref, get } from "firebase/database";
+import { doc, getDoc, setDoc } from "firebase/firestore"; // Added getDoc
 import Link from "next/link";
 
 export default function HomePage() {
@@ -39,12 +40,14 @@ export default function HomePage() {
 
           if (snapshot.exists()) {
             const usersList = snapshot.val();
-            const usersArray = Object.values(usersList); 
+            const usersArray = Object.values(usersList);
             const userData = usersArray.find((user) => user.email === currentUser.email);
 
             if (userData) {
               const userRole = userData.role;
+              const { name, rollNumber } = userData;
 
+              // Set custom claim if not already set
               if (!role) {
                 await fetch("/api/setCustomClaim", {
                   method: "POST",
@@ -52,6 +55,26 @@ export default function HomePage() {
                   body: JSON.stringify({ email: currentUser.email, role: userRole }),
                 });
                 await getIdToken(currentUser, true);
+              }
+
+              // Check Firestore for existing data
+              const userDocRef = doc(db, "users", currentUser.uid);
+              const userDocSnap = await getDoc(userDocRef);
+
+              if (!userDocSnap.exists() || !userDocSnap.data().name || !userDocSnap.data().rollNumber) {
+                // Write to Firestore only if document doesn't exist or is missing name/rollNumber
+                await setDoc(
+                  userDocRef,
+                  {
+                    name: name || "Unknown",
+                    rollNumber: rollNumber || "N/A",
+                    email: currentUser.email, // Optional
+                  },
+                  { merge: true }
+                );
+                console.log("Firestore updated for user:", currentUser.uid);
+              } else {
+                console.log("Firestore already has user data for:", currentUser.uid);
               }
 
               router.push("/dashboard");
@@ -63,7 +86,7 @@ export default function HomePage() {
             }
           }
         } catch (err) {
-          console.error("Error checking user access:", err);
+          console.error("Error checking user access or interacting with Firestore:", err);
         }
         setLoadingVerification(false);
       }

@@ -85,7 +85,7 @@ export default function ApproveUsers() {
           onConfirm: () => setDialog({ open: false }),
         });
       } else {
-        usersList.push({ email: member.email, role: "member" });
+        usersList.push({ email: member.email, name: member.name , rollNumber: member.rollNumber, role: "member" });
         await set(usersRef, usersList);
         await remove(ref(rtdb, `members/${member.id}`));
         setMembers(members.filter((m) => m.id !== member.id));
@@ -104,7 +104,7 @@ export default function ApproveUsers() {
 
       for (const member of members) {
         if (!usersList.some((user) => user.email === member.email)) {
-          usersList.push({ email: member.email, role: "member" });
+          usersList.push({ email: member.email, name: member.name , rollNumber: member.rollNumber, role: "member" });
           await sendEmail(member.email, member.name, true);
         }
       }
