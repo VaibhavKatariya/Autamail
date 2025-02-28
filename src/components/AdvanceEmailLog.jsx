@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { getFirestore, collection, query, where, getDocs } from "firebase/firestore";
 
 export default function AdvancedSearch({ onUserFound }) {
-  const [searchType, setSearchType] = useState("email"); // Default to email
+  const [searchType, setSearchType] = useState("rollNumber");
   const [searchValue, setSearchValue] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -71,8 +71,8 @@ export default function AdvancedSearch({ onUserFound }) {
                   <SelectValue placeholder="Select type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="email">Email</SelectItem>
                   <SelectItem value="rollNumber">Roll Number</SelectItem>
+                  <SelectItem value="email">Email</SelectItem>
                 </SelectContent>
               </Select>
             </div>
