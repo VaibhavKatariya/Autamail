@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import Loading from "@/components/skeletonUI/logsLoading";
 
 
-export default function EmailLogs({collectionPath}) {
+export default function EmailLogs(props) {
   const [logs, setLogs] = useState([]);
   const [filteredLogs, setFilteredLogs] = useState([]);
   const [logsLoading, setLogsLoading] = useState(true);
@@ -39,6 +39,7 @@ export default function EmailLogs({collectionPath}) {
 
       // fetch logs from firestore
       const db = getFirestore();
+      const collectionPath = props.uid ? `users/${props.uid}/sentEmails` : props.collectionPath;
       const emailsRef = collection(db, collectionPath);
 
       let q;
@@ -102,7 +103,7 @@ export default function EmailLogs({collectionPath}) {
 
   // Update logs with Mailgun statuses and patch Firestore
   const updateLogsStatus = async (logs) => {
-    const logsToCheck = logs.filter((log) => log.status !== "failed" && log.status !== "delivered");
+    const logsToCheck = logs.filter((log) => log.status !== "failed" && log.status !== "delivered" && log.status !== "queued");
 
     const statusPromises = logsToCheck.map(async (log) => {
       try {
@@ -176,8 +177,8 @@ export default function EmailLogs({collectionPath}) {
     return <div className="flex justify-center items-center h-screen">Error loading logs: {error.message}</div>;
   }
 
-  if(logsLoading) {
-    return <Loading/>
+  if (logsLoading) {
+    return <Loading />
   }
 
   return (
@@ -185,10 +186,21 @@ export default function EmailLogs({collectionPath}) {
       <Card className="w-full max-w-4xl mx-auto">
         <CardHeader>
           <div className="flex justify-between items-center">
-            <CardTitle>Email Logs</CardTitle>
-            <Button onClick={() => fetchEmailLogs()} disabled={refreshing}>
-              {refreshing ? <ReloadIcon className="animate-spin" /> : "Refresh"}
-            </Button>
+            <CardTitle>
+              {props.userData && props.userData.name
+                ? `Email Logs for ${props.userData.name} (${props.userData.rollNumber || ""})`
+                : "Email Logs"}
+            </CardTitle>
+            <div className="flex gap-2">
+              {props.onBack && (
+                <Button variant="outline" onClick={props.onBack}>
+                  Back
+                </Button>
+              )}
+              <Button onClick={() => fetchEmailLogs()} disabled={refreshing}>
+                {refreshing ? <ReloadIcon className="animate-spin" /> : "Refresh"}
+              </Button>
+            </div>
           </div>
           <Input
             type="text"
@@ -255,7 +267,11 @@ export default function EmailLogs({collectionPath}) {
                 </TableBody>
               </Table>
             ) : (
-              <div className="text-center text-gray-500 p-4">Wow, look at that! A whole lot of... NOTHING. Maybe if you actually sent some emails instead of just chilling, this wouldn&apos;t be empty ¯\_(ツ)_/¯</div>
+              <>
+                {props.uid ? <div className="text-center text-gray-500 p-4">
+                  No email logs found for this user.
+                </div> : <div className="text-center text-gray-500 p-4">Wow, look at that! A whole lot of... NOTHING. Maybe if you actually sent some emails instead of just chilling, this wouldn&apos;t be empty ¯\_(ツ)_/¯</div>}
+              </>
             )}
           </CardContent>
         </div>

@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import AdvancedSearch from "@/components/AdvanceEmailLog";
 import EmailLogs from "@/components/EmailLogs";
-import EmailLogsResult from "@/components/EmailLogsResult";
 import LogsLoading from "@/components/skeletonUI/logsLoading";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
@@ -41,7 +40,7 @@ export default function Page() {
           {!userData ? (
             <AdvancedSearch onUserFound={setUserData} />
           ) : (
-            <EmailLogsResult uid={userData.uid} userData={userData} onBack={() => setUserData(null)} />
+            <EmailLogs isAdvance={true} uid={userData.uid} userData={userData} onBack={() => setUserData(null)} />
           )}
         </TabsContent>
       </Tabs>
