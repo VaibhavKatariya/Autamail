@@ -11,12 +11,10 @@ import { ReloadIcon } from "@radix-ui/react-icons";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuthState } from "react-firebase-hooks/auth";
-import { auth } from "@/lib/firebase";
-import Mailgun from "mailgun.js";
-import FormData from "form-data";
+import { auth, db, rtdb } from "@/lib/firebase";
 import { collection, getDocs, query, where } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import Papa from "papaparse";
+import { ref, push } from "@firebase/database";
 
 export default function SendEmailForm({ fromEmail }) {
   const [template, setTemplate] = useState("");
@@ -25,26 +23,15 @@ export default function SendEmailForm({ fromEmail }) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [dialogMessage, setDialogMessage] = useState("");
   const [dialogType, setDialogType] = useState("");
-  const [removingIndex, setRemovingIndex] = useState();
+  const [removingIndex, setRemovingIndex] = useState(null);
   const [user] = useAuthState(auth);
 
-  const mailgun = new Mailgun(FormData);
-  const mg = mailgun.client({
-    username: "api",
-    key: process.env.NEXT_PUBLIC_MAILGUN_API_KEY,
-    url: "https://api.eu.mailgun.net",
-  });
-
   const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  const allEmailsValid = bulkEntries.every(entry => entry.email && validateEmail(entry.email));
-
-  let alreadySentEmails = new Set();
+  const allEmailsValid = bulkEntries.every((entry) => entry.email && validateEmail(entry.email));
 
   const checkEmailsBeforeSending = async (entries) => {
-    setIsDialogOpen(true);
-    setDialogMessage("Checking emails...");
-
-    const emailsToCheck = entries.map(entry => entry.email.toLowerCase());
+    const alreadySentEmails = new Set();
+    const emailsToCheck = entries.map((entry) => entry.email.toLowerCase());
 
     try {
       const q = query(collection(db, "sentEmails"), where("email", "in", emailsToCheck));
@@ -54,27 +41,9 @@ export default function SendEmailForm({ fromEmail }) {
         alreadySentEmails.add(doc.data().email.toLowerCase());
       });
 
-      let filteredEntries = entries.filter(entry => !alreadySentEmails.has(entry.email));
-
-      let logMessages = entries.map(entry =>
-        alreadySentEmails.has(entry.email)
-          ? `❌ email to ${entry.email} was already sent. Skipping.`
-          : `✅ ${entry.email} is not sent yet.`
-      );
-
-      setDialogMessage(logMessages.join("\n"));
-
-      if (filteredEntries.length === 0) {
-        setDialogType("error");
-        return [];
-      }
-
-      setDialogType("success");
-      return filteredEntries;
+      return entries.filter((entry) => !alreadySentEmails.has(entry.email.toLowerCase()));
     } catch (error) {
       console.error("Error checking emails: ", error);
-      setDialogMessage("Error checking emails. Try again.");
-      setDialogType("error");
       return [];
     }
   };
@@ -142,31 +111,52 @@ export default function SendEmailForm({ fromEmail }) {
 
     setIsSubmitting(true);
 
-    const unsentEntries = await checkEmailsBeforeSending(bulkEntries);
+    // Check for duplicate emails in bulkEntries
+    const emailCount = new Map();
+    const duplicateEmails = [];
+    bulkEntries.forEach((entry) => {
+      const email = entry.email.toLowerCase();
+      emailCount.set(email, (emailCount.get(email) || 0) + 1);
+      if (emailCount.get(email) > 1 && !duplicateEmails.some((dup) => dup.email === email)) {
+        duplicateEmails.push(entry);
+      }
+    });
+
+    // Filter out duplicates, keeping only the first occurrence
+    const uniqueEntries = bulkEntries.filter((entry, index, self) =>
+      index === self.findIndex((e) => e.email.toLowerCase() === entry.email.toLowerCase())
+    );
+
+    const unsentEntries = await checkEmailsBeforeSending(uniqueEntries);
+    const skippedEmails = uniqueEntries.filter((entry) => !unsentEntries.some((unsent) => unsent.email === entry.email));
+    let failedEmails = [];
+    const queuedEmailIds = []; // Array to store IDs of queued emails
+
     if (unsentEntries.length === 0) {
+      const messageLines = [];
+      if (skippedEmails.length > 0) {
+        messageLines.push(`Skipped (already sent):\n${skippedEmails.map((e) => `${e.email} (${e.name || "No name"})`).join("\n")}`);
+      }
+      if (duplicateEmails.length > 0) {
+        messageLines.push(`Skipped (duplicates):\n${duplicateEmails.map((e) => `${e.email} (${e.name || "No name"})`).join("\n")}`);
+      }
+      setDialogMessage(messageLines.length > 0 ? messageLines.join("\n\n") : "No emails were sent.");
+      setDialogType("warning");
       setIsSubmitting(false);
+      setIsDialogOpen(true);
       return;
     }
 
     try {
       for (const entry of unsentEntries) {
-        const emailResponse = await mg.messages.create(process.env.NEXT_PUBLIC_MAILGUN_DOMAIN, {
-          from: "GDG JIIT admin@gdg-jiit.com",
-          to: entry.email.toLowerCase(),
-          template: template,
-          "h:X-Mailgun-Variables": JSON.stringify({ name: entry.name }),
-        });
-
-        const messageId = emailResponse.id.replace(/[<>]/g, "");
-
         const data = {
           email: entry.email.toLowerCase(),
           name: entry.name,
           template,
-          messageId,
+          messageId: "",
           fromEmail,
           sentAt: new Date().toISOString(),
-          status: "pending",
+          status: "queued",
           uid: user.uid,
         };
 
@@ -178,34 +168,55 @@ export default function SendEmailForm({ fromEmail }) {
 
         const globalLogData = await setGlobalLog.json();
 
-        await fetch("/api/setEmailLog", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ docId: globalLogData.id, collectionName: `users/${user.uid}/sentEmails`, data }),
+        if (setGlobalLog.ok) {
+          await fetch("/api/setEmailLog", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ docId: globalLogData.id, collectionName: `users/${user.uid}/sentEmails`, data }),
+          });
+
+          // Add the email ID to the queued array
+          queuedEmailIds.push(globalLogData.id);
+        } else {
+          failedEmails.push(entry);
+        }
+      }
+
+      // Push all queued email IDs to RTDB as an array
+      if (queuedEmailIds.length > 0) {
+        const queuedEmailsRef = ref(rtdb, "queuedEmails");
+        // Use push to append each ID with a unique key
+        queuedEmailIds.forEach((id) => {
+          push(queuedEmailsRef, id);
         });
       }
 
-      let failedEmails = bulkEntries
-        .filter(entry => alreadySentEmails.has(entry.email))
-        .map(entry => entry.email);
-
+      const messageLines = [];
+      if (unsentEntries.length > failedEmails.length) {
+        messageLines.push("Emails(s) Queued!");
+      }
+      if (skippedEmails.length > 0) {
+        messageLines.push(`Skipped (already sent):\n${skippedEmails.map((e) => `${e.email} (${e.name || "No name"})`).join("\n")}`);
+      }
+      if (duplicateEmails.length > 0) {
+        messageLines.push(`Skipped (duplicates):\n${duplicateEmails.map((e) => `${e.email} (${e.name || "No name"})`).join("\n")}`);
+      }
       if (failedEmails.length > 0) {
-        setDialogMessage(`Some emails were not sent:\n\n${failedEmails.join("\n")} ❌ \n\nOther emails are being processed.`);
-        setDialogType("warning");
-      } else {
-        setDialogMessage("All emails sent successfully!");
-        setDialogType("success");
+        messageLines.push(`Failed to send:\n${failedEmails.map((e) => `${e.email} (${e.name || "No name"})`).join("\n")}`);
       }
 
+      setDialogMessage(messageLines.join("\n\n") || "No emails processed.");
+      setDialogType(failedEmails.length > 0 || duplicateEmails.length > 0 ? "warning" : "success");
+
     } catch (error) {
-      setDialogMessage("Failed to send emails. Please try again.");
+      setDialogMessage(`Error occurred while sending emails:\n${error.message}`);
       setDialogType("error");
     }
 
     setBulkEntries([]);
     setTemplate("");
-    setIsDialogOpen(true);
     setIsSubmitting(false);
+    setIsDialogOpen(true);
   };
 
   return (
@@ -227,8 +238,9 @@ export default function SendEmailForm({ fromEmail }) {
                 {bulkEntries.map((entry, index) => (
                   <div
                     key={index}
-                    className={`space-y-2 border p-4 rounded-lg flex flex-col gap-2 relative transition-opacity duration-300 ${removingIndex === index ? "opacity-0" : "opacity-100"
-                      }`}
+                    className={`space-y-2 border p-4 rounded-lg flex flex-col gap-2 relative transition-opacity duration-300 ${
+                      removingIndex === index ? "opacity-0" : "opacity-100"
+                    }`}
                   >
                     <span>Entry {index + 1}</span>
                     <Button
@@ -237,7 +249,7 @@ export default function SendEmailForm({ fromEmail }) {
                         setTimeout(() => {
                           setBulkEntries(bulkEntries.filter((_, i) => i !== index));
                           setRemovingIndex(null);
-                        }, 300); // Matches the duration of the CSS animation
+                        }, 300);
                       }}
                       className="absolute top-2 right-2"
                       variant="outline"
@@ -275,20 +287,36 @@ export default function SendEmailForm({ fromEmail }) {
                   </div>
                 ))}
 
-                <Button onClick={() => setBulkEntries([...bulkEntries, { name: "", email: "" }])} className="w-full">Add Company/Person</Button>
-                <div className="mt-1"><Label>Select Email Template</Label></div>
+                <Button onClick={() => setBulkEntries([...bulkEntries, { name: "", email: "" }])} className="w-full">
+                  Add Company/Person
+                </Button>
+                <div className="mt-1">
+                  <Label>Select Email Template</Label>
+                </div>
                 <Select value={template} onValueChange={setTemplate}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select a template" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem className="cursor-pointer" value="Sponsor">Sponsor's mail</SelectItem>
-                    <SelectItem className="cursor-pointer" value="Chief">Chief's mail</SelectItem>
-                    <SelectItem className="cursor-pointer" value="Participant">Participant's mail</SelectItem>
+                    <SelectItem className="cursor-pointer" value="Sponsor">
+                      Sponsor's mail
+                    </SelectItem>
+                    <SelectItem className="cursor-pointer" value="Chief">
+                      Chief's mail
+                    </SelectItem>
+                    <SelectItem className="cursor-pointer" value="Participant">
+                      Participant's mail
+                    </SelectItem>
                   </SelectContent>
                 </Select>
                 <Button onClick={handleBulkSubmit} disabled={isSubmitting || !allEmailsValid} className="w-full">
-                  {isSubmitting ? <><ReloadIcon className="mr-2 h-4 w-4 animate-spin" /> Submitting...</> : "Send Email(s)"}
+                  {isSubmitting ? (
+                    <>
+                      <ReloadIcon className="mr-2 h-4 w-4 animate-spin" /> Submitting...
+                    </>
+                  ) : (
+                    "Send Email(s)"
+                  )}
                 </Button>
               </div>
             </TabsContent>
@@ -297,9 +325,9 @@ export default function SendEmailForm({ fromEmail }) {
         <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>{dialogType === "success" ? "Success!" : "Error!"}</AlertDialogTitle>
+              <AlertDialogTitle>{dialogType === "success" ? "Success!" : dialogType === "warning" ? "Warning!" : "Error!"}</AlertDialogTitle>
             </AlertDialogHeader>
-            <div className="py-2">{dialogMessage}</div>
+            <div className="py-2 whitespace-pre-line max-h-[300px] overflow-y-auto">{dialogMessage}</div>
             <AlertDialogAction onClick={() => setIsDialogOpen(false)}>Okay</AlertDialogAction>
           </AlertDialogContent>
         </AlertDialog>
