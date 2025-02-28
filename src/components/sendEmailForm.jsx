@@ -110,14 +110,35 @@ export default function SendEmailForm({ fromEmail }) {
 
     setIsSubmitting(true);
 
-    const unsentEntries = await checkEmailsBeforeSending(bulkEntries);
-    const skippedEmails = bulkEntries.filter((entry) => !unsentEntries.some((unsent) => unsent.email === entry.email));
+    // Check for duplicate emails in bulkEntries
+    const emailCount = new Map();
+    const duplicateEmails = [];
+    bulkEntries.forEach((entry) => {
+      const email = entry.email.toLowerCase();
+      emailCount.set(email, (emailCount.get(email) || 0) + 1);
+      if (emailCount.get(email) > 1 && !duplicateEmails.some((dup) => dup.email === email)) {
+        duplicateEmails.push(entry);
+      }
+    });
+
+    // Filter out duplicates, keeping only the first occurrence
+    const uniqueEntries = bulkEntries.filter((entry, index, self) =>
+      index === self.findIndex((e) => e.email.toLowerCase() === entry.email.toLowerCase())
+    );
+
+    const unsentEntries = await checkEmailsBeforeSending(uniqueEntries);
+    const skippedEmails = uniqueEntries.filter((entry) => !unsentEntries.some((unsent) => unsent.email === entry.email));
     let failedEmails = [];
 
     if (unsentEntries.length === 0) {
-      setDialogMessage(
-        `No emails were sent.\n\nSkipped (already sent):\n${skippedEmails.map((e) => `${e.email} (${e.name || "No name"})`).join("\n") || "None"}`
-      );
+      const messageLines = [];
+      if (skippedEmails.length > 0) {
+        messageLines.push(`Skipped (already sent):\n${skippedEmails.map((e) => `${e.email} (${e.name || "No name"})`).join("\n")}`);
+      }
+      if (duplicateEmails.length > 0) {
+        messageLines.push(`Skipped (duplicates):\n${duplicateEmails.map((e) => `${e.email} (${e.name || "No name"})`).join("\n")}`);
+      }
+      setDialogMessage(messageLines.length > 0 ? messageLines.join("\n\n") : "No emails were sent.");
       setDialogType("warning");
       setIsSubmitting(false);
       setIsDialogOpen(true);
@@ -158,17 +179,20 @@ export default function SendEmailForm({ fromEmail }) {
 
       const messageLines = [];
       if (unsentEntries.length > failedEmails.length) {
-        messageLines.push("Email(s) Queued!");
+        messageLines.push("Emails(s) Queued!");
       }
       if (skippedEmails.length > 0) {
         messageLines.push(`Skipped (already sent):\n${skippedEmails.map((e) => `${e.email} (${e.name || "No name"})`).join("\n")}`);
+      }
+      if (duplicateEmails.length > 0) {
+        messageLines.push(`Skipped (duplicates):\n${duplicateEmails.map((e) => `${e.email} (${e.name || "No name"})`).join("\n")}`);
       }
       if (failedEmails.length > 0) {
         messageLines.push(`Failed to send:\n${failedEmails.map((e) => `${e.email} (${e.name || "No name"})`).join("\n")}`);
       }
 
       setDialogMessage(messageLines.join("\n\n") || "No emails processed.");
-      setDialogType(failedEmails.length > 0 ? "warning" : "success");
+      setDialogType(failedEmails.length > 0 || duplicateEmails.length > 0 ? "warning" : "success");
 
     } catch (error) {
       setDialogMessage(`Error occurred while sending emails:\n${error.message}`);
