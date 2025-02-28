@@ -11,9 +11,10 @@ import { ReloadIcon } from "@radix-ui/react-icons";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuthState } from "react-firebase-hooks/auth";
-import { auth, db } from "@/lib/firebase";
+import { auth, db, rtdb } from "@/lib/firebase";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import Papa from "papaparse";
+import { ref, push } from "@firebase/database";
 
 export default function SendEmailForm({ fromEmail }) {
   const [template, setTemplate] = useState("");
@@ -129,6 +130,7 @@ export default function SendEmailForm({ fromEmail }) {
     const unsentEntries = await checkEmailsBeforeSending(uniqueEntries);
     const skippedEmails = uniqueEntries.filter((entry) => !unsentEntries.some((unsent) => unsent.email === entry.email));
     let failedEmails = [];
+    const queuedEmailIds = []; // Array to store IDs of queued emails
 
     if (unsentEntries.length === 0) {
       const messageLines = [];
@@ -172,9 +174,21 @@ export default function SendEmailForm({ fromEmail }) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ docId: globalLogData.id, collectionName: `users/${user.uid}/sentEmails`, data }),
           });
+
+          // Add the email ID to the queued array
+          queuedEmailIds.push(globalLogData.id);
         } else {
           failedEmails.push(entry);
         }
+      }
+
+      // Push all queued email IDs to RTDB as an array
+      if (queuedEmailIds.length > 0) {
+        const queuedEmailsRef = ref(rtdb, "queuedEmails");
+        // Use push to append each ID with a unique key
+        queuedEmailIds.forEach((id) => {
+          push(queuedEmailsRef, id);
+        });
       }
 
       const messageLines = [];
