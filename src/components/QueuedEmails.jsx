@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { ReloadIcon } from "@radix-ui/react-icons";
 import { getFirestore, collection, getDocs, query, orderBy, limit, startAfter, startAt } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
-import { CopyIcon, Send } from "lucide-react";
+import { CopyIcon, Send, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import Loading from "@/components/skeletonUI/logsLoading";
 
@@ -23,7 +23,8 @@ export default function QueuedEmails() {
   const [firstDoc, setFirstDoc] = useState(null);
   const [prevDocs, setPrevDocs] = useState([]);
   const [hasMore, setHasMore] = useState(true);
-  const [sendingStates, setSendingStates] = useState({}); // Track sending state for each email
+  const [sendingStates, setSendingStates] = useState({});
+  const [deletingStates, setDeletingStates] = useState({});
 
   const fetchQueuedEmails = async (next = false, prev = false) => {
     setRefreshing(true);
@@ -139,6 +140,52 @@ export default function QueuedEmails() {
     setFilteredLogs(filtered);
   }, [searchQuery, logs]);
 
+  const deleteEmailLog = async (log) => {
+    try {
+      setDeletingStates(prev => ({ ...prev, [log.id]: true }));
+
+      // Step 1: Delete from queuedEmails
+      const queuedResponse = await fetch('/api/setEmailLog', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          collectionName: 'queuedEmails',
+          docId: log.id,
+        }),
+      });
+
+      if (!queuedResponse.ok) {
+        throw new Error('Failed to delete from queuedEmails');
+      }
+
+      if (log.uid) {
+        const userResponse = await fetch('/api/setEmailLog', {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            collectionName: `users/${log.uid}/sentEmails`,
+            docId: log.id,
+          }),
+        });
+
+        if (!userResponse.ok) {
+          throw new Error('Failed to delete from sentEmails');
+        }
+      }
+
+      toast.success('Email removed from queue successfully!');
+      await fetchQueuedEmails(); 
+    } catch (err) {
+      toast.error('Error deleting email: ' + err.message);
+    } finally {
+      setDeletingStates(prev => ({ ...prev, [log.id]: false }));
+    }
+  };
+
   if (error) {
     return <div className="flex justify-center items-center h-screen">Error loading queued emails: {error.message}</div>;
   }
@@ -215,19 +262,34 @@ export default function QueuedEmails() {
                         </button>
                       </TableCell>
                       <TableCell>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => sendSingleEmail(log.id)}
-                          disabled={sendingStates[log.id] || refreshing}
-                        >
-                          {sendingStates[log.id] ? (
-                            <ReloadIcon className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Send className="w-4 h-4" />
-                          )}
-                          <span className="ml-2">Send</span>
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => sendSingleEmail(log.id)}
+                            disabled={sendingStates[log.id] || refreshing}
+                          >
+                            {sendingStates[log.id] ? (
+                              <ReloadIcon className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Send className="w-4 h-4" />
+                            )}
+                            <span className="ml-2">Send</span>
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => deleteEmailLog(log)}
+                            disabled={deletingStates[log.id] || refreshing}
+                          >
+                            {deletingStates[log.id] ? (
+                              <ReloadIcon className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
+                            <span className="ml-2">Delete</span>
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
