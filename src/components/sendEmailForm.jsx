@@ -163,7 +163,7 @@ export default function SendEmailForm({ fromEmail }) {
         const setGlobalLog = await fetch("/api/setEmailLog", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ collectionName: "sentEmails", data }),
+          body: JSON.stringify({ collectionName: "queuedEmails", data }),
         });
 
         const globalLogData = await setGlobalLog.json();
@@ -175,20 +175,9 @@ export default function SendEmailForm({ fromEmail }) {
             body: JSON.stringify({ docId: globalLogData.id, collectionName: `users/${user.uid}/sentEmails`, data }),
           });
 
-          // Add the email ID to the queued array
-          queuedEmailIds.push(globalLogData.id);
         } else {
           failedEmails.push(entry);
         }
-      }
-
-      // Push all queued email IDs to RTDB as an array
-      if (queuedEmailIds.length > 0) {
-        const queuedEmailsRef = ref(rtdb, "queuedEmails");
-        // Use push to append each ID with a unique key
-        queuedEmailIds.forEach((id) => {
-          push(queuedEmailsRef, id);
-        });
       }
 
       const messageLines = [];

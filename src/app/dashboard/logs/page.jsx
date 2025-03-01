@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import AdvancedSearch from "@/components/AdvanceEmailLog";
 import EmailLogs from "@/components/EmailLogs";
+import QueuedEmails from "@/components/QueuedEmails";
 import LogsLoading from "@/components/skeletonUI/logsLoading";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
@@ -13,7 +14,6 @@ export default function Page() {
   const [userData, setUserData] = useState(null);
   const router = useRouter();
 
-  // Redirect if not authenticated
   useEffect(() => {
     if (!loading && !checkingAuth && !user) {
       router.replace("/");
@@ -27,23 +27,35 @@ export default function Page() {
   const collectionPath = isAdmin ? "sentEmails" : `users/${user.uid}/sentEmails`;
 
   return (
-    (isAdmin ? <div className="flex flex-col items-center justify-center w-full h-[calc(100vh-10vh)] p-4 min-h-screen">
-      <Tabs defaultValue="normal" className="w-full max-w-4xl">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="normal">Normal</TabsTrigger>
-          <TabsTrigger value="advanced">Advanced</TabsTrigger>
-        </TabsList>
-        <TabsContent value="normal">
-          <EmailLogs collectionPath={collectionPath} />
-        </TabsContent>
-        <TabsContent value="advanced">
-          {!userData ? (
-            <AdvancedSearch onUserFound={setUserData} />
-          ) : (
-            <EmailLogs isAdvance={true} uid={userData.uid} userData={userData} onBack={() => setUserData(null)} />
-          )}
-        </TabsContent>
-      </Tabs>
-    </div> : < EmailLogs collectionPath={collectionPath} />)
+    (isAdmin ? 
+      <div className="flex flex-col items-center justify-center w-full h-[calc(100vh-10vh)] p-4 min-h-screen">
+        <Tabs defaultValue="normal" className="w-full max-w-4xl">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="normal">Normal</TabsTrigger>
+            <TabsTrigger value="queued">Queued</TabsTrigger>
+            <TabsTrigger value="advanced">Advanced</TabsTrigger>
+          </TabsList>
+          <TabsContent value="normal">
+            <EmailLogs collectionPath={collectionPath} />
+          </TabsContent>
+          <TabsContent value="queued">
+            <QueuedEmails />
+          </TabsContent>
+          <TabsContent value="advanced">
+            {!userData ? (
+              <AdvancedSearch onUserFound={setUserData} />
+            ) : (
+              <EmailLogs 
+                isAdvance={true} 
+                uid={userData.uid} 
+                userData={userData} 
+                onBack={() => setUserData(null)} 
+              />
+            )}
+          </TabsContent>
+        </Tabs>
+      </div> 
+      : <EmailLogs collectionPath={collectionPath} />
+    )
   );
 }
