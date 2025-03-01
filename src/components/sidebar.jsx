@@ -22,12 +22,28 @@ export function AppSidebar({ authUser = { displayName: "", email: "", photo: "" 
   const router = useRouter();
   const { user, loading, isAdmin, checkingAuth } = useAuth();
 
-  // Sample Data
+  const handleNeedHelp = () => {
+    const whatsappNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER1;
+    if (!whatsappNumber) {
+      console.error("WhatsApp number not configured in environment variables.");
+      return;
+    }
+
+    const currentPageUrl = window.location.href;
+    const timestamp = new Date().toLocaleString();
+    const message = `Assistance Required on ${currentPageUrl}\nRole: ${isAdmin ? "admin" : "member"}\nName: ${user?.displayName || "Unknown"}\nuid: ${user?.uid || "N/A"}\nTime: ${timestamp}`;
+
+    const encodedMessage = encodeURIComponent(message);
+    const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodedMessage}`;
+
+    window.open(whatsappUrl, "_blank");
+  };
+
   const data = {
     versions: [],
     navMain: [
       {
-        title: 'Ahh shit, not you again... T_T',
+        title: "Ahh shit, not you again... T_T",
         url: "/",
         items: [
           {
@@ -40,21 +56,18 @@ export function AppSidebar({ authUser = { displayName: "", email: "", photo: "" 
           },
           {
             title: "Need Help?",
-            url: "/dashboard/help",
+            url: "#",
           },
         ],
       },
     ],
   };
 
-  // Add admin-only pages if user is admin
   if (isAdmin) {
-    data.navMain[0].items.push(
-      {
-        title: "Manage Users",
-        url: "/dashboard/manageUsers",
-      }
-    );
+    data.navMain[0].items.push({
+      title: "Manage Users",
+      url: "/dashboard/manageUsers",
+    });
   }
 
   return (
@@ -71,7 +84,11 @@ export function AppSidebar({ authUser = { displayName: "", email: "", photo: "" 
                 {item.items.map((navItem) => (
                   <SidebarMenuItem key={navItem.title}>
                     <SidebarMenuButton asChild>
-                      <button onClick={() => router.push(navItem.url)}>{navItem.title}</button>
+                      {navItem.title === "Need Help?" ? (
+                        <button onClick={handleNeedHelp}>{navItem.title}</button>
+                      ) : (
+                        <button onClick={() => router.push(navItem.url)}>{navItem.title}</button>
+                      )}
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
