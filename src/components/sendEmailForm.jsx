@@ -34,14 +34,12 @@ export default function SendEmailForm({ fromEmail }) {
     const emailsToCheck = entries.map((entry) => entry.email.toLowerCase());
 
     try {
-      // Check sentEmails collection
       const sentQuery = query(collection(db, "sentEmails"), where("email", "in", emailsToCheck));
       const sentSnapshot = await getDocs(sentQuery);
       sentSnapshot.forEach((doc) => {
         alreadySentEmails.add(doc.data().email.toLowerCase());
       });
 
-      // Check queuedEmails collection
       const queuedQuery = query(collection(db, "queuedEmails"), where("email", "in", emailsToCheck));
       const queuedSnapshot = await getDocs(queuedQuery);
       queuedSnapshot.forEach((doc) => {
@@ -122,7 +120,6 @@ export default function SendEmailForm({ fromEmail }) {
 
     setIsSubmitting(true);
 
-    // Check for duplicate emails in bulkEntries
     const emailCount = new Map();
     const duplicateEmails = [];
     bulkEntries.forEach((entry) => {
@@ -171,20 +168,40 @@ export default function SendEmailForm({ fromEmail }) {
           uid: user.uid,
         };
 
-        const setGlobalLog = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/setEmailLog`, {
+        const apiUrl = "/api/setEmailLog";
+        console.log("Fetching:", apiUrl, "with data:", JSON.stringify({ collectionName: "queuedEmails", data }));
+
+        const setGlobalLog = await fetch(apiUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ collectionName: "queuedEmails", data }),
         });
 
-        const globalLogData = await setGlobalLog.json();
+        // Log raw response for debugging
+        const rawResponse = await setGlobalLog.text();
+        console.log("Raw response from setGlobalLog:", rawResponse);
+
+        let globalLogData;
+        try {
+          globalLogData = JSON.parse(rawResponse);
+        } catch (jsonError) {
+          console.error("Failed to parse JSON:", jsonError, "Raw response:", rawResponse);
+          throw new Error(`API returned invalid JSON: ${rawResponse.slice(0, 50)}...`);
+        }
 
         if (setGlobalLog.ok) {
-          await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/setEmailLog`, {
+          const userLogResponse = await fetch(apiUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ docId: globalLogData.id, collectionName: `users/${user.uid}/sentEmails`, data }),
           });
+
+          const userLogRaw = await userLogResponse.text();
+          console.log("Raw response from userLog:", userLogRaw);
+
+          if (!userLogResponse.ok) {
+            failedEmails.push(entry);
+          }
         } else {
           failedEmails.push(entry);
         }
@@ -211,16 +228,18 @@ export default function SendEmailForm({ fromEmail }) {
       setDialogType(failedEmails.length > 0 || duplicateEmails.length > 0 ? "warning" : "success");
 
     } catch (error) {
+      console.error("Bulk submit error:", error);
       setDialogMessage(`Error occurred while queuing emails:\n${error.message}`);
       setDialogType("error");
+    } finally {
+      setBulkEntries([]);
+      setTemplate("");
+      setIsSubmitting(false);
+      setIsDialogOpen(true);
     }
-
-    setBulkEntries([]);
-    setTemplate("");
-    setIsSubmitting(false);
-    setIsDialogOpen(true);
   };
 
+  // Rest of the component (UI) remains unchanged
   return (
     <div className="flex items-center justify-center w-full h-[calc(100vh-10vh)] p-4">
       <Card className="w-full max-w-xl mx-auto">
