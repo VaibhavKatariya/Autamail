@@ -11,10 +11,9 @@ import { ReloadIcon } from "@radix-ui/react-icons";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuthState } from "react-firebase-hooks/auth";
-import { auth, db, rtdb } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import Papa from "papaparse";
-import { ref, push } from "@firebase/database";
 
 export default function SendEmailForm({ fromEmail }) {
   const [template, setTemplate] = useState("");
@@ -31,20 +30,32 @@ export default function SendEmailForm({ fromEmail }) {
 
   const checkEmailsBeforeSending = async (entries) => {
     const alreadySentEmails = new Set();
+    const alreadyQueuedEmails = new Set();
     const emailsToCheck = entries.map((entry) => entry.email.toLowerCase());
 
     try {
-      const q = query(collection(db, "sentEmails"), where("email", "in", emailsToCheck));
-      const querySnapshot = await getDocs(q);
-
-      querySnapshot.forEach((doc) => {
+      // Check sentEmails collection
+      const sentQuery = query(collection(db, "sentEmails"), where("email", "in", emailsToCheck));
+      const sentSnapshot = await getDocs(sentQuery);
+      sentSnapshot.forEach((doc) => {
         alreadySentEmails.add(doc.data().email.toLowerCase());
       });
 
-      return entries.filter((entry) => !alreadySentEmails.has(entry.email.toLowerCase()));
+      // Check queuedEmails collection
+      const queuedQuery = query(collection(db, "queuedEmails"), where("email", "in", emailsToCheck));
+      const queuedSnapshot = await getDocs(queuedQuery);
+      queuedSnapshot.forEach((doc) => {
+        alreadyQueuedEmails.add(doc.data().email.toLowerCase());
+      });
+
+      return { 
+        unsentEntries: entries.filter((entry) => !alreadySentEmails.has(entry.email.toLowerCase()) && !alreadyQueuedEmails.has(entry.email.toLowerCase())),
+        alreadySent: entries.filter((entry) => alreadySentEmails.has(entry.email.toLowerCase())),
+        alreadyQueued: entries.filter((entry) => alreadyQueuedEmails.has(entry.email.toLowerCase()))
+      };
     } catch (error) {
       console.error("Error checking emails: ", error);
-      return [];
+      return { unsentEntries: [], alreadySent: [], alreadyQueued: [] };
     }
   };
 
@@ -122,25 +133,25 @@ export default function SendEmailForm({ fromEmail }) {
       }
     });
 
-    // Filter out duplicates, keeping only the first occurrence
     const uniqueEntries = bulkEntries.filter((entry, index, self) =>
       index === self.findIndex((e) => e.email.toLowerCase() === entry.email.toLowerCase())
     );
 
-    const unsentEntries = await checkEmailsBeforeSending(uniqueEntries);
-    const skippedEmails = uniqueEntries.filter((entry) => !unsentEntries.some((unsent) => unsent.email === entry.email));
+    const { unsentEntries, alreadySent, alreadyQueued } = await checkEmailsBeforeSending(uniqueEntries);
     let failedEmails = [];
-    const queuedEmailIds = []; // Array to store IDs of queued emails
 
     if (unsentEntries.length === 0) {
       const messageLines = [];
-      if (skippedEmails.length > 0) {
-        messageLines.push(`Skipped (already sent):\n${skippedEmails.map((e) => `${e.email} (${e.name || "No name"})`).join("\n")}`);
+      if (alreadySent.length > 0) {
+        messageLines.push(`Skipped (already sent):\n${alreadySent.map((e) => `${e.email} (${e.name || "No name"})`).join("\n")}`);
+      }
+      if (alreadyQueued.length > 0) {
+        messageLines.push(`Skipped (already queued):\n${alreadyQueued.map((e) => `${e.email} (${e.name || "No name"})`).join("\n")}`);
       }
       if (duplicateEmails.length > 0) {
         messageLines.push(`Skipped (duplicates):\n${duplicateEmails.map((e) => `${e.email} (${e.name || "No name"})`).join("\n")}`);
       }
-      setDialogMessage(messageLines.length > 0 ? messageLines.join("\n\n") : "No emails were sent.");
+      setDialogMessage(messageLines.length > 0 ? messageLines.join("\n\n") : "No emails were queued.");
       setDialogType("warning");
       setIsSubmitting(false);
       setIsDialogOpen(true);
@@ -160,7 +171,7 @@ export default function SendEmailForm({ fromEmail }) {
           uid: user.uid,
         };
 
-        const setGlobalLog = await fetch("/api/setEmailLog", {
+        const setGlobalLog = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/setEmailLog`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ collectionName: "queuedEmails", data }),
@@ -169,12 +180,11 @@ export default function SendEmailForm({ fromEmail }) {
         const globalLogData = await setGlobalLog.json();
 
         if (setGlobalLog.ok) {
-          await fetch("/api/setEmailLog", {
+          await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/setEmailLog`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ docId: globalLogData.id, collectionName: `users/${user.uid}/sentEmails`, data }),
           });
-
         } else {
           failedEmails.push(entry);
         }
@@ -182,23 +192,26 @@ export default function SendEmailForm({ fromEmail }) {
 
       const messageLines = [];
       if (unsentEntries.length > failedEmails.length) {
-        messageLines.push("Emails(s) Queued!");
+        messageLines.push("Email(s) Queued!");
       }
-      if (skippedEmails.length > 0) {
-        messageLines.push(`Skipped (already sent):\n${skippedEmails.map((e) => `${e.email} (${e.name || "No name"})`).join("\n")}`);
+      if (alreadySent.length > 0) {
+        messageLines.push(`Skipped (already sent):\n${alreadySent.map((e) => `${e.email} (${e.name || "No name"})`).join("\n")}`);
+      }
+      if (alreadyQueued.length > 0) {
+        messageLines.push(`Skipped (already queued):\n${alreadyQueued.map((e) => `${e.email} (${e.name || "No name"})`).join("\n")}`);
       }
       if (duplicateEmails.length > 0) {
         messageLines.push(`Skipped (duplicates):\n${duplicateEmails.map((e) => `${e.email} (${e.name || "No name"})`).join("\n")}`);
       }
       if (failedEmails.length > 0) {
-        messageLines.push(`Failed to send:\n${failedEmails.map((e) => `${e.email} (${e.name || "No name"})`).join("\n")}`);
+        messageLines.push(`Failed to queue:\n${failedEmails.map((e) => `${e.email} (${e.name || "No name"})`).join("\n")}`);
       }
 
       setDialogMessage(messageLines.join("\n\n") || "No emails processed.");
       setDialogType(failedEmails.length > 0 || duplicateEmails.length > 0 ? "warning" : "success");
 
     } catch (error) {
-      setDialogMessage(`Error occurred while sending emails:\n${error.message}`);
+      setDialogMessage(`Error occurred while queuing emails:\n${error.message}`);
       setDialogType("error");
     }
 
