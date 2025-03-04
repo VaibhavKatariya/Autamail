@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ref, onValue, set } from "firebase/database";
+import { useObjectVal } from "react-firebase-hooks/database"; 
+import { ref, set } from "firebase/database";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
-import { rtdb } from "@/lib/firebase";
+import { rtdb, db } from "@/lib/firebase"; 
 import { Button } from "@/components/ui/button";
 import {
     AlertDialog,
@@ -13,27 +15,63 @@ import {
     AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 
-
-export default function usersList (){
-    const { user, isAdmin, loading, checkingAuth } = useAuth();
+export default function UsersList() {
+    const { user, isAdmin } = useAuth();
     const [users, setUsers] = useState([]);
-    const [dataLoading, setDataLoading] = useState(true);
     const [selectedUser, setSelectedUser] = useState(null);
     const [alertMessage, setAlertMessage] = useState("");
     const [isError, setIsError] = useState(false);
     const [dialogOpen, setDialogOpen] = useState(false);
     const [alertOpen, setAlertOpen] = useState(false);
 
+    // Use react-firebase-hooks to listen to RTDB users
+    const [rtdbUsers, rtdbLoading, rtdbError] = useObjectVal(ref(rtdb, "users"));
+
     useEffect(() => {
-        if (isAdmin) {
-            const usersRef = ref(rtdb, "users");
-            onValue(usersRef, (snapshot) => {
-                const data = snapshot.val();
-                setUsers(data ? Object.values(data) : []);
-                setDataLoading(false);
-            });
+        if (isAdmin && !rtdbLoading && rtdbUsers) {
+            const rtdbUsersArray = rtdbUsers ? Object.values(rtdbUsers) : [];
+
+            const fetchFirestoreData = async () => {
+                const firestoreUsersPromises = rtdbUsersArray.map(async (rtdbUser) => {
+                    try {
+                        const usersCollection = collection(db, "users"); // Use db instead of firestore
+                        const q = query(usersCollection, where("email", "==", rtdbUser.email));
+                        const querySnapshot = await getDocs(q);
+
+                        if (!querySnapshot.empty) {
+                            const firestoreData = querySnapshot.docs[0].data();
+                            return {
+                                ...rtdbUser,
+                                enrollment: firestoreData.rollNumber || "",
+                                name: firestoreData.name || "",
+                                hasLoggedIn: true
+                            };
+                        } else {
+                            return {
+                                ...rtdbUser,
+                                enrollment: "",
+                                name: "",
+                                hasLoggedIn: false
+                            };
+                        }
+                    } catch (error) {
+                        console.error(`Error fetching Firestore data for ${rtdbUser.email}:`, error);
+                        return {
+                            ...rtdbUser,
+                            enrollment: "",
+                            name: "",
+                            hasLoggedIn: false
+                        };
+                    }
+                });
+
+                const enrichedUsers = await Promise.all(firestoreUsersPromises);
+                setUsers(enrichedUsers);
+            };
+
+            fetchFirestoreData();
         }
-    }, [user]);
+    }, [isAdmin, rtdbUsers, rtdbLoading]);
 
     const handleDeleteUser = async () => {
         if (!selectedUser) return;
@@ -65,7 +103,6 @@ export default function usersList (){
         setSelectedUser(null);
     };
 
-
     const handleRoleChange = async (email, role) => {
         try {
             // Update role in Realtime Database
@@ -94,6 +131,10 @@ export default function usersList (){
         }
     };
 
+    if (rtdbError) {
+        return <div>Error loading users: {rtdbError.message}</div>;
+    }
+
     return (
         <>
             <div className="flex items-center justify-center w-full">
@@ -103,45 +144,55 @@ export default function usersList (){
                     </CardHeader>
                     <CardContent>
                         <div className="max-h-[400px] overflow-y-auto">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Index</TableHead>
-                                        <TableHead>Email</TableHead>
-                                        <TableHead>Role</TableHead>
-                                        <TableHead>Action</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {users.map((user, index) => (
-                                        <TableRow key={index}>
-                                            <TableCell>{index + 1}</TableCell>
-                                            <TableCell>{user.email}</TableCell>
-                                            <TableCell>
-                                                <select
-                                                    value={user.role}
-                                                    style={{ backgroundColor: 'black', color: 'white', border: 'none', padding: '0.5rem', borderRadius: '4px' }}
-                                                    onChange={(e) => handleRoleChange(user.email, e.target.value)}
-                                                >
-                                                    <option value="member">Member</option>
-                                                    <option value="admin">Admin</option>
-                                                </select>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Button
-                                                    variant="destructive"
-                                                    onClick={() => {
-                                                        setSelectedUser(user);
-                                                        setDialogOpen(true);
-                                                    }}
-                                                >
-                                                    Remove
-                                                </Button>
-                                            </TableCell>
+                            {rtdbLoading ? (
+                                <div>Loading...</div>
+                            ) : (
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Index</TableHead>
+                                            <TableHead>Email</TableHead>
+                                            <TableHead>Name</TableHead>
+                                            <TableHead>Enrollment</TableHead>
+                                            <TableHead>Has Logged In</TableHead>
+                                            <TableHead>Role</TableHead>
+                                            <TableHead>Action</TableHead>
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {users.map((user, index) => (
+                                            <TableRow key={index}>
+                                                <TableCell>{index + 1}</TableCell>
+                                                <TableCell>{user.email}</TableCell>
+                                                <TableCell>{user.name}</TableCell>
+                                                <TableCell>{user.enrollment}</TableCell>
+                                                <TableCell>{user.hasLoggedIn ? "Yes" : "No"}</TableCell>
+                                                <TableCell>
+                                                    <select
+                                                        value={user.role}
+                                                        style={{ backgroundColor: 'black', color: 'white', border: 'none', padding: '0.5rem', borderRadius: '4px' }}
+                                                        onChange={(e) => handleRoleChange(user.email, e.target.value)}
+                                                    >
+                                                        <option value="member">Member</option>
+                                                        <option value="admin">Admin</option>
+                                                    </select>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Button
+                                                        variant="destructive"
+                                                        onClick={() => {
+                                                            setSelectedUser(user);
+                                                            setDialogOpen(true);
+                                                        }}
+                                                    >
+                                                        Remove
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            )}
                         </div>
                     </CardContent>
                 </Card>
@@ -171,7 +222,6 @@ export default function usersList (){
                     </div>
                 </AlertDialogContent>
             </AlertDialog>
-
         </>
-    )
+    );
 }
