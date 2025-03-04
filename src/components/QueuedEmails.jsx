@@ -23,6 +23,7 @@ export default function QueuedEmails() {
   const [firstDoc, setFirstDoc] = useState(null);
   const [prevDocs, setPrevDocs] = useState([]);
   const [hasMore, setHasMore] = useState(true);
+  const [sendingAll, setSendingAll] = useState(false);
   const [sendingStates, setSendingStates] = useState({});
   const [deletingStates, setDeletingStates] = useState({});
 
@@ -76,8 +77,9 @@ export default function QueuedEmails() {
   };
 
   const sendQueuedEmails = async () => {
+    if (sendingAll) return;
+    setSendingAll(true);
     try {
-      setRefreshing(true);
       const emailIds = logs.map(log => log.id);
 
       const response = await fetch('/api/send-queued-emails', {
@@ -97,14 +99,15 @@ export default function QueuedEmails() {
     } catch (err) {
       toast.error('Error sending emails: ' + err.message);
     } finally {
-      setRefreshing(false);
+      setSendingAll(false);
     }
   };
 
   const sendSingleEmail = async (emailId) => {
-    try {
-      setSendingStates(prev => ({ ...prev, [emailId]: true }));
+    if (sendingStates[emailId]) return;
+    setSendingStates(prev => ({ ...prev, [emailId]: true }));
 
+    try {
       const response = await fetch('/api/send-queued-emails', {
         method: 'POST',
         headers: {
@@ -118,7 +121,7 @@ export default function QueuedEmails() {
       }
 
       toast.success('Email sent successfully!');
-      await fetchQueuedEmails(); // Refresh the list after sending
+      await fetchQueuedEmails();
     } catch (err) {
       toast.error('Error sending email: ' + err.message);
     } finally {
@@ -141,10 +144,10 @@ export default function QueuedEmails() {
   }, [searchQuery, logs]);
 
   const deleteEmailLog = async (log) => {
-    try {
-      setDeletingStates(prev => ({ ...prev, [log.id]: true }));
+    if (deletingStates[log.id]) return;
+    setDeletingStates(prev => ({ ...prev, [log.id]: true }));
 
-      // Step 1: Delete from queuedEmails
+    try {
       const queuedResponse = await fetch('/api/setEmailLog', {
         method: 'DELETE',
         headers: {
@@ -178,7 +181,7 @@ export default function QueuedEmails() {
       }
 
       toast.success('Email removed from queue successfully!');
-      await fetchQueuedEmails(); 
+      await fetchQueuedEmails();
     } catch (err) {
       toast.error('Error deleting email: ' + err.message);
     } finally {
@@ -186,12 +189,11 @@ export default function QueuedEmails() {
     }
   };
 
+  // Helper to check if any email is being sent
+  const isAnyEmailSending = sendingAll || Object.values(sendingStates).some(state => state);
+
   if (error) {
     return <div className="flex justify-center items-center h-screen">Error loading queued emails: {error.message}</div>;
-  }
-
-  if (loading) {
-    return <Loading />;
   }
 
   return (
@@ -201,10 +203,16 @@ export default function QueuedEmails() {
           <div className="flex justify-between items-center">
             <CardTitle>Queued Emails</CardTitle>
             <div className="flex gap-2">
-              <Button onClick={() => fetchQueuedEmails()} disabled={refreshing}>
+              <Button onClick={() => fetchQueuedEmails()} disabled={refreshing || loading}>
                 {refreshing ? <ReloadIcon className="animate-spin" /> : "Refresh"}
               </Button>
-              <Button onClick={sendQueuedEmails} disabled={refreshing || logs.length === 0}>
+              <Button 
+                onClick={sendQueuedEmails} 
+                disabled={sendingAll || loading || logs.length === 0}
+              >
+                {sendingAll ? (
+                  <ReloadIcon className="w-4 h-4 animate-spin mr-2" />
+                ) : null}
                 Send Queued Emails
               </Button>
             </div>
@@ -215,11 +223,14 @@ export default function QueuedEmails() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="mt-2"
+            disabled={loading}
           />
         </CardHeader>
         <div className="max-h-[400px] overflow-y-auto">
           <CardContent>
-            {filteredLogs.length > 0 ? (
+            {loading ? (
+              <Loading />
+            ) : filteredLogs.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -257,6 +268,7 @@ export default function QueuedEmails() {
                             toast.success("Message ID copied!");
                           }}
                           className="p-1 hover:bg-gray-200 rounded-md transition"
+                          disabled={loading}
                         >
                           <CopyIcon className="w-4 h-4 text-gray-600" />
                         </button>
@@ -267,7 +279,7 @@ export default function QueuedEmails() {
                             variant="outline"
                             size="sm"
                             onClick={() => sendSingleEmail(log.id)}
-                            disabled={sendingStates[log.id] || refreshing}
+                            disabled={sendingStates[log.id] || loading}
                           >
                             {sendingStates[log.id] ? (
                               <ReloadIcon className="w-4 h-4 animate-spin" />
@@ -280,7 +292,7 @@ export default function QueuedEmails() {
                             variant="outline"
                             size="sm"
                             onClick={() => deleteEmailLog(log)}
-                            disabled={deletingStates[log.id] || refreshing}
+                            disabled={deletingStates[log.id] || loading || isAnyEmailSending}
                           >
                             {deletingStates[log.id] ? (
                               <ReloadIcon className="w-4 h-4 animate-spin" />
@@ -303,10 +315,16 @@ export default function QueuedEmails() {
           </CardContent>
         </div>
         <div className="flex justify-between p-4">
-          <Button onClick={() => fetchQueuedEmails(false, true)} disabled={prevDocs.length === 0}>
+          <Button 
+            onClick={() => fetchQueuedEmails(false, true)} 
+            disabled={prevDocs.length === 0 || loading}
+          >
             Previous
           </Button>
-          <Button onClick={() => fetchQueuedEmails(true)} disabled={!hasMore}>
+          <Button 
+            onClick={() => fetchQueuedEmails(true)} 
+            disabled={!hasMore || loading}
+          >
             Next
           </Button>
         </div>
