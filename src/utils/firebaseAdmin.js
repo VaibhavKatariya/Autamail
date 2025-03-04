@@ -7,7 +7,7 @@ if (!admin.apps.length) {
       privateKey: Buffer.from(process.env.FIREBASE_PRIVATE_KEY, "base64").toString().replace(/\\n/g, "\n"),
       clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
     }),
-    databaseURL: `https://${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}.firebaseio.com`,
+    databaseURL: `https://${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}-default-rtdb.firebaseio.com`,
   });
 }
 

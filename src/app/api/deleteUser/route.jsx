@@ -1,6 +1,4 @@
-import { admin } from "@/utils/firebaseAdmin";
-import { rtdb } from "@/lib/firebase";
-import { ref, set, get } from "firebase/database";
+import { admin, rtdbAdmin } from "@/utils/firebaseAdmin";
 import { NextResponse } from "next/server";
 
 export async function POST(req) {
@@ -13,12 +11,6 @@ export async function POST(req) {
     if (!email) {
       console.log("No email provided.");
       return NextResponse.json({ message: "Email is required" }, { status: 400 });
-    }
-
-    // Check if Firebase Admin SDK is initialized
-    if (!admin.apps.length) {
-      console.error("Firebase Admin SDK not initialized.");
-      return NextResponse.json({ message: "Firebase Admin SDK error" }, { status: 500 });
     }
 
     console.log("Checking if user exists in Firebase Auth...");
@@ -40,8 +32,8 @@ export async function POST(req) {
     }
 
     console.log("Checking Realtime Database for user...");
-    const usersRef = ref(rtdb, "users");
-    const snapshot = await get(usersRef);
+    const usersRef = rtdbAdmin.ref("users");
+    const snapshot = await usersRef.get();
 
     if (snapshot.exists()) {
       console.log("User list retrieved from RTDB.");
@@ -57,8 +49,7 @@ export async function POST(req) {
       });
 
       if (userKeyToDelete) {
-        const userToDeleteRef = ref(rtdb, `users/${userKeyToDelete}`);
-        await set(userToDeleteRef, null); // Deleting the user
+        await usersRef.child(userKeyToDelete).remove(); // Use Admin SDK to delete
         console.log(`User with email ${email} removed from Realtime Database.`);
       } else {
         console.log("User was not found in Realtime Database.");
