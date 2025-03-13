@@ -12,7 +12,6 @@ import { CopyIcon } from "lucide-react";
 import { toast } from "sonner";
 import Loading from "@/components/skeletonUI/logsLoading";
 
-
 export default function EmailLogs(props) {
   const [logs, setLogs] = useState([]);
   const [filteredLogs, setFilteredLogs] = useState([]);
@@ -20,11 +19,12 @@ export default function EmailLogs(props) {
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshing, setRefreshing] = useState(false);
-
   const [lastDoc, setLastDoc] = useState(null);
   const [firstDoc, setFirstDoc] = useState(null);
   const [prevDocs, setPrevDocs] = useState([]);
   const [hasMore, setHasMore] = useState(true);
+  const [totalDocs, setTotalDocs] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Fetch email logs from Firestore
   const fetchEmailLogs = async (next = false, prev = false) => {
@@ -37,19 +37,27 @@ export default function EmailLogs(props) {
       const user = auth.currentUser;
       if (!user) throw new Error("User not authenticated");
 
-      // fetch logs from firestore
       const db = getFirestore();
       const collectionPath = props.uid ? `users/${props.uid}/sentEmails` : props.collectionPath;
       const emailsRef = collection(db, collectionPath);
+
+      // Get total count of documents (only on first load or refresh)
+      if (!next && !prev) {
+        const snapshot = await getDocs(emailsRef);
+        setTotalDocs(snapshot.size);
+        setCurrentPage(1);
+      }
 
       let q;
       const pageSize = 10;
 
       if (next && lastDoc) {
         q = query(emailsRef, orderBy("sentAt", "desc"), startAfter(lastDoc), limit(pageSize));
+        setCurrentPage(currentPage + 1);
       } else if (prev && prevDocs.length > 0) {
         q = query(emailsRef, orderBy("sentAt", "desc"), startAt(prevDocs[prevDocs.length - 1]), limit(pageSize));
         setPrevDocs(prevDocs.slice(0, -1));
+        setCurrentPage(currentPage - 1);
       } else {
         q = query(emailsRef, orderBy("sentAt", "desc"), limit(pageSize));
       }
@@ -143,11 +151,9 @@ export default function EmailLogs(props) {
       const batch = writeBatch(db);
 
       logs.forEach((log) => {
-        // Update global sentEmails collection
         const globalDocRef = doc(db, "sentEmails", log.id);
         batch.update(globalDocRef, { status: log.status });
 
-        // Update user-specific sentEmails subcollection
         const userDocRef = doc(db, `users/${log.uid}/sentEmails`, log.id);
         batch.update(userDocRef, { status: log.status });
       });
@@ -178,7 +184,7 @@ export default function EmailLogs(props) {
   }
 
   if (logsLoading) {
-    return <Loading />
+    return <Loading />;
   }
 
   return (
@@ -209,6 +215,13 @@ export default function EmailLogs(props) {
             onChange={(e) => setSearchQuery(e.target.value)}
             className="mt-2"
           />
+          <div className="mt-2 text-sm text-gray-500">
+            {searchQuery ? (
+              <>Showing {filteredLogs.length} of {logs.length} filtered logs (out of {totalDocs} total)</>
+            ) : (
+              <>Showing {(currentPage - 1) * 10 + 1} - {Math.min(currentPage * 10, totalDocs)} of {totalDocs} logs</>
+            )}
+          </div>
         </CardHeader>
         <div className="max-h-[400px] overflow-y-auto">
           <CardContent>
@@ -268,9 +281,14 @@ export default function EmailLogs(props) {
               </Table>
             ) : (
               <>
-                {props.uid ? <div className="text-center text-gray-500 p-4">
-                  No email logs found for this user.
-                </div> : <div className="text-center text-gray-500 p-4">Wow, look at that! A whole lot of... NOTHING. Maybe if you actually sent some emails instead of just chilling, this wouldn&apos;t be empty ¯\_(ツ)_/¯</div>}
+                {props.uid ? (
+                  <div className="text-center text-gray-500 p-4">No email logs found for this user.</div>
+                ) : (
+                  <div className="text-center text-gray-500 p-4">
+                    Wow, look at that! A whole lot of... NOTHING. Maybe if you actually sent some emails instead of
+                    just chilling, this wouldn't be empty ¯\_(ツ)_/¯
+                  </div>
+                )}
               </>
             )}
           </CardContent>
