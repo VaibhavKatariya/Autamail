@@ -8,6 +8,7 @@ import EmailLogs from "@/components/EmailLogs";
 import QueuedEmails from "@/components/QueuedEmails";
 import LogsLoading from "@/components/skeletonUI/logsLoading";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import EmailStatsChart from "@/components/LogsCharts";
 
 export default function Page() {
   const { user, loading, isAdmin, checkingAuth } = useAuth();
@@ -25,9 +26,10 @@ export default function Page() {
   if (!user) return null;
 
   const collectionPath = isAdmin ? "sentEmails" : `users/${user.uid}/sentEmails`;
+  const chartCollectionPath = isAdmin ? "emailStats/global" : `users/${user.uid}/sentEmails`;
 
   return (
-    (isAdmin ? 
+    (isAdmin ?
       <div className="flex flex-col items-center justify-center w-full h-[calc(100vh-10vh)] p-4 min-h-screen">
         <Tabs defaultValue="normal" className="w-full max-w-4xl">
           <TabsList className="grid w-full grid-cols-3">
@@ -35,26 +37,31 @@ export default function Page() {
             <TabsTrigger value="queued">Queued</TabsTrigger>
             <TabsTrigger value="advanced">Advanced</TabsTrigger>
           </TabsList>
-          <TabsContent value="normal">
+
+          <TabsContent value="normal" className="h-[calc(100vh-20vh)] overflow-y-auto">
+            <EmailStatsChart isAdmin={isAdmin} userId={user.uid} />
             <EmailLogs collectionPath={collectionPath} />
           </TabsContent>
-          <TabsContent value="queued">
+
+          <TabsContent value="queued" className="h-[calc(100vh-20vh)] overflow-y-auto">
             <QueuedEmails />
           </TabsContent>
-          <TabsContent value="advanced">
+
+          <TabsContent value="advanced" className="h-[calc(100vh-20vh)] overflow-y-auto">
             {!userData ? (
               <AdvancedSearch onUserFound={setUserData} />
             ) : (
-              <EmailLogs 
-                isAdvance={true} 
-                uid={userData.uid} 
-                userData={userData} 
-                onBack={() => setUserData(null)} 
+              <EmailLogs
+                isAdvance={true}
+                uid={userData.uid}
+                userData={userData}
+                onBack={() => setUserData(null)}
               />
             )}
           </TabsContent>
+
         </Tabs>
-      </div> 
+      </div>
       : <EmailLogs collectionPath={collectionPath} />
     )
   );
