@@ -87,31 +87,67 @@ export default function EmailLogs(props) {
     }
   };
 
+  const recheckStatuses = async () => {
+    setRefreshing(true);
+    try {
+      const updatedLogs = await Promise.all(
+        logs.map(async (log) => {
+          try {
+            const newStatus = await fetchMailgunStatus(log.messageId);
+            return newStatus !== log.status ? { ...log, status: newStatus } : null;
+          } catch (error) {
+            console.error(`Error fetching status for ${log.id}:`, error);
+            return null;
+          }
+        })
+      );
+
+      const filteredUpdatedLogs = updatedLogs.filter(Boolean);
+      if (filteredUpdatedLogs.length > 0) {
+        await patchUpdatedLogs(filteredUpdatedLogs);
+      }
+
+      setLogs((prevLogs) =>
+        prevLogs.map((log) => {
+          const updatedLog = filteredUpdatedLogs.find((ul) => ul.id === log.id);
+          return updatedLog ? updatedLog : log;
+        })
+      );
+      toast.success("Statuses updated successfully!");
+    } catch (error) {
+      console.error("Error rechecking statuses:", error);
+      toast.error("Failed to update statuses");
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+
   // Fetch Mailgun status for a specific message ID
   const fetchMailgunStatus = async (messageId) => {
     const cleanedMessageId = messageId.replace(/^<|>$/g, ""); // Removes leading and trailing <>
     console.log("fetching status for message ID:", cleanedMessageId);
-    
+
     const apiKey = process.env.NEXT_PUBLIC_MAILGUN_API_KEY;
     const domain = process.env.NEXT_PUBLIC_MAILGUN_DOMAIN;
     const url = `https://api.eu.mailgun.net/v3/${domain}/events?message-id=${cleanedMessageId}`;
-  
+
     const response = await fetch(url, {
       method: "GET",
       headers: {
         Authorization: `Basic ${btoa(`api:${apiKey}`)}`,
       },
     });
-  
+
     if (!response.ok) {
       throw new Error(`Failed to fetch status for message ID: ${cleanedMessageId}`);
     }
-  
+
     const data = await response.json();
     console.log(data.items[0]);
     return data.items[0]?.event || "unknown";
   };
-  
+
 
   // Update logs with Mailgun statuses and patch Firestore
   const updateLogsStatus = async (logs) => {
@@ -210,15 +246,11 @@ export default function EmailLogs(props) {
               <Button onClick={() => fetchEmailLogs()} disabled={refreshing}>
                 {refreshing ? <ReloadIcon className="animate-spin" /> : "Refresh"}
               </Button>
+              <Button onClick={() => recheckStatuses()} disabled={refreshing}>
+                {refreshing ? <ReloadIcon className="animate-spin" /> : "Recheck Status"}
+              </Button>
             </div>
           </div>
-          <Input
-            type="text"
-            placeholder="Search by sender, recipient name, or email"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="mt-2"
-          />
           <div className="mt-2 text-sm text-gray-500">
             {searchQuery ? (
               <>Showing {filteredLogs.length} of {logs.length} filtered logs (out of {totalDocs} total)</>
