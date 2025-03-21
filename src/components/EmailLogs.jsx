@@ -11,6 +11,7 @@ import { getAuth } from "firebase/auth";
 import { CopyIcon } from "lucide-react";
 import { toast } from "sonner";
 import Loading from "@/components/skeletonUI/logsLoading";
+import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 
 export default function EmailLogs(props) {
   const [logs, setLogs] = useState([]);
@@ -93,8 +94,11 @@ export default function EmailLogs(props) {
       const updatedLogs = await Promise.all(
         logs.map(async (log) => {
           try {
-            const newStatus = await fetchMailgunStatus(log.messageId);
-            return newStatus !== log.status ? { ...log, status: newStatus } : null;
+            const { status, reason } = await fetchMailgunStatus(log.messageId);
+            if (status === "failed") {
+              return { ...log, status, reason }
+            }
+            return status !== log.status ? { ...log, status, reason } : null;
           } catch (error) {
             console.error(`Error fetching status for ${log.id}:`, error);
             return null;
@@ -110,9 +114,10 @@ export default function EmailLogs(props) {
       setLogs((prevLogs) =>
         prevLogs.map((log) => {
           const updatedLog = filteredUpdatedLogs.find((ul) => ul.id === log.id);
-          return updatedLog ? updatedLog : log;
+          return updatedLog ? { ...log, status: updatedLog.status, reason: updatedLog.reason } : log;
         })
       );
+
       toast.success("Statuses updated successfully!");
     } catch (error) {
       console.error("Error rechecking statuses:", error);
@@ -122,11 +127,10 @@ export default function EmailLogs(props) {
     }
   };
 
-
   // Fetch Mailgun status for a specific message ID
   const fetchMailgunStatus = async (messageId) => {
     const cleanedMessageId = messageId.replace(/^<|>$/g, ""); // Removes leading and trailing <>
-    console.log("fetching status for message ID:", cleanedMessageId);
+    console.log("Fetching status for message ID:", cleanedMessageId);
 
     const apiKey = process.env.NEXT_PUBLIC_MAILGUN_API_KEY;
     const domain = process.env.NEXT_PUBLIC_MAILGUN_DOMAIN;
@@ -144,19 +148,25 @@ export default function EmailLogs(props) {
     }
 
     const data = await response.json();
-    console.log(data.items[0]);
-    return data.items[0]?.event || "unknown";
-  };
+    console.log(data.items[0]["delivery-status"].message)
+    const event = data.items[0] || {};
 
+    return {
+      status: event.event || "unknown",
+      reason: event["delivery-status"]?.message || "No reason provided",
+    };
+  };
 
   // Update logs with Mailgun statuses and patch Firestore
   const updateLogsStatus = async (logs) => {
-    const logsToCheck = logs.filter((log) => log.status !== "failed" && log.status !== "delivered" && log.status !== "queued");
+    const logsToCheck = logs.filter(
+      (log) => log.status !== "delivered" && log.status !== "failed" && log.status !== "queued"
+    );
 
     const statusPromises = logsToCheck.map(async (log) => {
       try {
-        const newStatus = await fetchMailgunStatus(log.messageId);
-        return newStatus !== log.status ? { ...log, status: newStatus } : null;
+        const { status, reason } = await fetchMailgunStatus(log.messageId);
+        return status !== log.status ? { ...log, status, reason } : null;
       } catch (error) {
         console.error(error);
         return null;
@@ -192,14 +202,16 @@ export default function EmailLogs(props) {
 
       logs.forEach((log) => {
         const globalDocRef = doc(db, "sentEmails", log.id);
-        batch.update(globalDocRef, { status: log.status });
+        batch.set(globalDocRef, { status: log.status, reason: log.reason }, { merge: true });
 
-        const userDocRef = doc(db, `users/${log.uid}/sentEmails`, log.id);
-        batch.update(userDocRef, { status: log.status });
+        if (log.uid) {  // Ensure uid exists before trying to update user-specific logs
+          const userDocRef = doc(db, `users/${log.uid}/sentEmails`, log.id);
+          batch.set(userDocRef, { status: log.status, reason: log.reason }, { merge: true });
+        }
       });
 
       await batch.commit();
-      console.log("Updated logs in both collections successfully");
+      console.log("Updated logs with failure reasons successfully");
     } catch (error) {
       console.error("Error updating logs:", error);
     }
@@ -276,42 +288,7 @@ export default function EmailLogs(props) {
                 </TableHeader>
                 <TableBody>
                   {filteredLogs.map((log) => (
-                    <TableRow key={log.id}>
-                      <TableCell>{log.fromEmail}</TableCell>
-                      <TableCell>{log.template}</TableCell>
-                      <TableCell>{log.name}</TableCell>
-                      <TableCell>{log.email}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="inline-block w-2.5 h-2.5 rounded-full"
-                            style={{
-                              backgroundColor:
-                                log.status === "delivered"
-                                  ? "green"
-                                  : log.status === "failed"
-                                    ? "red"
-                                    : log.status === "bounced"
-                                      ? "orange"
-                                      : "gray",
-                            }}
-                          ></span>
-                          {log.status || "Checking..."}
-                        </div>
-                      </TableCell>
-                      <TableCell>{log.sentAt ? new Date(log.sentAt).toLocaleString() : "N/A"}</TableCell>
-                      <TableCell>
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(log.id);
-                            toast.success("Message ID copied!");
-                          }}
-                          className="p-1 hover:bg-gray-200 rounded-md transition"
-                        >
-                          <CopyIcon className="w-4 h-4 text-gray-600" />
-                        </button>
-                      </TableCell>
-                    </TableRow>
+                    <EmailRow key={log.id} log={log} />
                   ))}
                 </TableBody>
               </Table>
@@ -342,3 +319,65 @@ export default function EmailLogs(props) {
     </div>
   );
 }
+
+const EmailRow = ({ log }) => {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <>
+      <TableRow key={log.id} onClick={() => setExpanded(!expanded)} className="cursor-pointer">
+        <TableCell>{log.fromEmail}</TableCell>
+        <TableCell>{log.template}</TableCell>
+        <TableCell>{log.name}</TableCell>
+        <TableCell>{log.email}</TableCell>
+        <TableCell>
+          <div className="flex items-center gap-2">
+            <span
+              className="inline-block w-2.5 h-2.5 rounded-full"
+              style={{
+                backgroundColor:
+                  log.status === "delivered"
+                    ? "green"
+                    : log.status === "failed"
+                      ? "red"
+                      : log.status === "bounced"
+                        ? "orange"
+                        : "gray",
+              }}
+            ></span>
+            {log.status || "Checking..."}
+          {log.status === "failed" && <button
+              className="p-1"
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpanded(!expanded);
+              }}
+            >
+              {expanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
+            </button>}
+          </div>
+        </TableCell>
+        
+        <TableCell>{log.sentAt ? new Date(log.sentAt).toLocaleString() : "N/A"}</TableCell>
+        <TableCell>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(log.id);
+              toast.success("Message ID copied!");
+            }}
+            className="p-1 hover:bg-gray-200 rounded-md transition"
+          >
+            <CopyIcon className="w-4 h-4 text-gray-600" />
+          </button>
+        </TableCell>
+      </TableRow>
+      {expanded && log.status === "failed" && (
+        <TableRow>
+          <TableCell colSpan={7} className="bg-red-900 text-red-300 p-4">
+            <strong>Failure Reason:</strong> {log.reason || "No details available"}
+          </TableCell>
+        </TableRow>
+      )}
+    </>
+  );
+};
