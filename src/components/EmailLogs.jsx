@@ -89,25 +89,29 @@ export default function EmailLogs(props) {
 
   // Fetch Mailgun status for a specific message ID
   const fetchMailgunStatus = async (messageId) => {
-    console.log("fetching status for message ID:", messageId);
+    const cleanedMessageId = messageId.replace(/^<|>$/g, ""); // Removes leading and trailing <>
+    console.log("fetching status for message ID:", cleanedMessageId);
+    
     const apiKey = process.env.NEXT_PUBLIC_MAILGUN_API_KEY;
     const domain = process.env.NEXT_PUBLIC_MAILGUN_DOMAIN;
-    const url = `https://api.eu.mailgun.net/v3/${domain}/events?message-id=${messageId}`;
-
+    const url = `https://api.eu.mailgun.net/v3/${domain}/events?message-id=${cleanedMessageId}`;
+  
     const response = await fetch(url, {
       method: "GET",
       headers: {
         Authorization: `Basic ${btoa(`api:${apiKey}`)}`,
       },
     });
-
+  
     if (!response.ok) {
-      throw new Error(`Failed to fetch status for message ID: ${messageId}`);
+      throw new Error(`Failed to fetch status for message ID: ${cleanedMessageId}`);
     }
-
+  
     const data = await response.json();
+    console.log(data.items[0]);
     return data.items[0]?.event || "unknown";
   };
+  
 
   // Update logs with Mailgun statuses and patch Firestore
   const updateLogsStatus = async (logs) => {
