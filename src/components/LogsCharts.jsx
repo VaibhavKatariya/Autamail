@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
-import { db, rtdb } from "@/lib/firebase";
-import { collection, getDocs } from "firebase/firestore";
-import { ref, get, set } from "firebase/database";
+import { rtdb } from "@/lib/firebase";
+import { ref, get } from "firebase/database";
 import { PieChart, Pie, Tooltip, Cell, ResponsiveContainer, Legend } from "recharts";
 
 const STATUS_COLORS = {
@@ -11,31 +10,20 @@ const STATUS_COLORS = {
 };
 
 export default function EmailStatsPieChart({ isAdmin, userId }) {
-  const [emailStats, setEmailStats] = useState({ delivered: [], failed: [], unknown: [] });
+  const [emailStats, setEmailStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchStats() {
       try {
-        let stats = { delivered: [], failed: [], unknown: [] }; // Default empty structure
-
         const statsRef = isAdmin ? ref(rtdb, "emailStats") : ref(rtdb, `emailStats/users/${userId}`);
         const statsSnap = await get(statsRef);
+
         if (statsSnap.exists()) {
-          stats = statsSnap.val();
-
-          // If admin, remove the 'users' key from stats if it exists
-          if (isAdmin && stats.users) {
-            delete stats.users;
-          }
-        }
-
-        setEmailStats(stats);
-
-        // If no data is found, compute and store stats
-        if (Object.values(stats).every((arr) => arr.length === 0)) {
-          console.log("No existing stats found, computing fresh stats...");
-          await computeAndStoreStats();
+          setEmailStats(statsSnap.val());
+        } else {
+          console.log("No email stats found.");
+          setEmailStats({ delivered: 0, failed: 0, unknown: 0 });
         }
       } catch (error) {
         console.error("Error fetching email stats:", error);
@@ -44,48 +32,21 @@ export default function EmailStatsPieChart({ isAdmin, userId }) {
       }
     }
 
-    async function computeAndStoreStats() {
-      try {
-        console.log("Computing email stats...");
-        const collectionPath = isAdmin ? "sentEmails" : `users/${userId}/sentEmails`;
-        const sentEmailsRef = collection(db, collectionPath);
-        const emailDocs = await getDocs(sentEmailsRef);
-
-        let statsObj = { delivered: [], failed: [], unknown: [] };
-        emailDocs.forEach((email) => {
-          const status = email.data().status;
-          const emailDocId = email.id; // Store only the doc ID
-          if (statsObj[status]) {
-            statsObj[status].push(emailDocId);
-          }
-        });
-
-        const statsRef = isAdmin ? ref(rtdb, "emailStats") : ref(rtdb, `emailStats/users/${userId}`);
-        await set(statsRef, statsObj);
-
-        setEmailStats(statsObj);
-      } catch (error) {
-        console.error("Error computing email stats:", error);
-      }
-    }
-
     fetchStats();
   }, [isAdmin, userId]);
 
   if (loading) return <p>Loading...</p>;
-  if (!emailStats || Object.values(emailStats).every((arr) => arr.length === 0)) {
+  if (!emailStats || Object.values(emailStats).every((count) => count === 0)) {
     return <p>No data available</p>;
   }
 
-  console.log("Email Stats:", emailStats); // Debugging output
-
-  const chartData = Object.entries(emailStats).map(([status, docIds]) => ({
+  const chartData = Object.entries(emailStats).map(([status, count]) => ({
     name: status.charAt(0).toUpperCase() + status.slice(1),
-    value: docIds.length, // Use length to count the number of docs
+    value: count.length,
     color: STATUS_COLORS[status] || "#607D8B",
   }));
 
-  console.log("Chart Data:", chartData); // Debugging output
+  console.log(chartData)
 
   return (
     <ResponsiveContainer width="100%" height={350}>
