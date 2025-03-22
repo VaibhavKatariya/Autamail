@@ -30,7 +30,8 @@ export default function Page() {
 
   return (
     (isAdmin ?
-      <div className="flex flex-col items-center justify-center w-full h-[calc(100vh-10vh)] p-4 min-h-screen">
+      <div className="flex flex-col items-center justify-center w-full p-4 min-h-screen">
+        <EmailStatsChart isAdmin={isAdmin} userId={user.uid} />
         <Tabs defaultValue="normal" className="w-full max-w-4xl">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="normal">Normal</TabsTrigger>
@@ -39,7 +40,6 @@ export default function Page() {
           </TabsList>
 
           <TabsContent value="normal" className="h-[calc(100vh-20vh)] overflow-y-auto">
-            <EmailStatsChart isAdmin={isAdmin} userId={user.uid} />
             <EmailLogs collectionPath={collectionPath} />
           </TabsContent>
 
@@ -51,22 +51,17 @@ export default function Page() {
             {!userData ? (
               <AdvancedSearch onUserFound={setUserData} />
             ) : (
-              <>
-                <EmailStatsChart isAdmin={false} userId={userData.uid} />
                 <EmailLogs
                   isAdvance={true}
                   uid={userData.uid}
                   userData={userData}
                   onBack={() => setUserData(null)}
                 />
-              </>
             )}
           </TabsContent>
-
         </Tabs>
       </div>
       : (<>
-        <EmailStatsChart isAdmin={false} userId={user.uid} />
         <EmailLogs collectionPath={collectionPath} />
       </>)
     )
