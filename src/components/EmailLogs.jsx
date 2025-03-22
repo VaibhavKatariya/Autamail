@@ -191,51 +191,59 @@ export default function EmailLogs(props) {
   const patchUpdatedLogs = async (logs) => {
     try {
       const db = getFirestore();
-      const rtdb = getDatabase(); // Get reference to RTDB
+      const rtdb = getDatabase();
       const auth = getAuth();
       const user = auth.currentUser;
-  
+
       if (!user) {
         throw new Error("User not authenticated");
       }
-  
+
       const batch = writeBatch(db);
-  
+
       for (const log of logs) {
         const { id, uid, status } = log;
-        
+
         // Update Firestore: Global and User-specific email logs
         const globalDocRef = doc(db, "sentEmails", id);
         batch.set(globalDocRef, { status: log.status, reason: log.reason }, { merge: true });
-  
+
         if (uid) {
           const userDocRef = doc(db, `users/${uid}/sentEmails`, id);
           batch.set(userDocRef, { status: log.status, reason: log.reason }, { merge: true });
         }
-  
-        // Update RTDB: emailStats
+
+        // Update RTDB: Global emailStats and user-specific emailStats
         const emailStatsRef = ref(rtdb, "emailStats");
-  
-        await runTransaction(emailStatsRef, (emailStats) => {
-          if (!emailStats) emailStats = {};
-  
-          // Remove email ID from previous categories
-          ["failed", "unknown", "queued", "delivered"].forEach((category) => {
-            if (emailStats[category] && emailStats[category].includes(id)) {
-              emailStats[category] = emailStats[category].filter((emailId) => emailId !== id);
+        const userEmailStatsRef = ref(rtdb, `emailStats/users/${uid}`);
+
+        const updateStats = async (statsRef) => {
+          await runTransaction(statsRef, (emailStats) => {
+            if (!emailStats) emailStats = {};
+
+            // Remove email ID from previous categories
+            ["failed", "unknown", "queued", "delivered"].forEach((category) => {
+              if (emailStats[category] && emailStats[category].includes(id)) {
+                emailStats[category] = emailStats[category].filter((emailId) => emailId !== id);
+              }
+            });
+
+            // Add email ID to the new status category
+            if (!emailStats[status]) {
+              emailStats[status] = [];
             }
+            emailStats[status].push(id);
+
+            return emailStats;
           });
-  
-          // Add email ID to the new status category
-          if (!emailStats[status]) {
-            emailStats[status] = [];
-          }
-          emailStats[status].push(id);
-  
-          return emailStats;
-        });
+        };
+
+        await Promise.all([
+          updateStats(emailStatsRef),
+          uid ? updateStats(userEmailStatsRef) : Promise.resolve(),
+        ]);
       }
-  
+
       await batch.commit();
       console.log("Updated Firestore and RTDB successfully");
     } catch (error) {
@@ -372,7 +380,7 @@ const EmailRow = ({ log }) => {
               }}
             ></span>
             {log.status || "Checking..."}
-          {log.status === "failed" && <button
+            {log.status === "failed" && <button
               className="p-1"
               onClick={(e) => {
                 e.stopPropagation();
@@ -383,7 +391,7 @@ const EmailRow = ({ log }) => {
             </button>}
           </div>
         </TableCell>
-        
+
         <TableCell>{log.sentAt ? new Date(log.sentAt).toLocaleString() : "N/A"}</TableCell>
         <TableCell>
           <button

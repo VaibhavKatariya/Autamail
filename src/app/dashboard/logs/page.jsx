@@ -51,18 +51,24 @@ export default function Page() {
             {!userData ? (
               <AdvancedSearch onUserFound={setUserData} />
             ) : (
-              <EmailLogs
-                isAdvance={true}
-                uid={userData.uid}
-                userData={userData}
-                onBack={() => setUserData(null)}
-              />
+              <>
+                <EmailStatsChart isAdmin={false} userId={userData.uid} />
+                <EmailLogs
+                  isAdvance={true}
+                  uid={userData.uid}
+                  userData={userData}
+                  onBack={() => setUserData(null)}
+                />
+              </>
             )}
           </TabsContent>
 
         </Tabs>
       </div>
-      : <EmailLogs collectionPath={collectionPath} />
+      : (<>
+        <EmailStatsChart isAdmin={false} userId={user.uid} />
+        <EmailLogs collectionPath={collectionPath} />
+      </>)
     )
   );
 }
