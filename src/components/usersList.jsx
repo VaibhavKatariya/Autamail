@@ -20,6 +20,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { rtdb, db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input"; // Import Input component
 import {
   AlertDialog,
   AlertDialogContent,
@@ -31,19 +32,18 @@ import {
 export default function UsersList() {
   const { user, isAdmin } = useAuth();
   const [users, setUsers] = useState([]);
+  const [filteredUsers, setFilteredUsers] = useState([]); // State for filtered users
+  const [searchTerm, setSearchTerm] = useState(""); // State for search input
   const [selectedUser, setSelectedUser] = useState(null);
   const [alertMessage, setAlertMessage] = useState("");
   const [isError, setIsError] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [alertOpen, setAlertOpen] = useState(false);
 
-  // Use react-firebase-hooks to listen to RTDB users
   const [rtdbUsers, rtdbLoading, rtdbError] = useObjectVal(ref(rtdb, "users"));
 
   useEffect(() => {
     if (isAdmin && !rtdbLoading && rtdbUsers) {
-      const rtdbUsersArray = rtdbUsers ? Object.values(rtdbUsers) : [];
-
       const fetchFirestoreData = async () => {
         const rtdbUsersArray = rtdbUsers ? Object.values(rtdbUsers) : [];
 
@@ -60,7 +60,6 @@ export default function UsersList() {
               const userDoc = querySnapshot.docs[0];
               const firestoreData = userDoc.data();
 
-              // Fetch sentEmails count efficiently
               const sentEmailsCollection = collection(
                 db,
                 `users/${userDoc.id}/sentEmails`
@@ -68,7 +67,7 @@ export default function UsersList() {
               const countSnapshot = await getCountFromServer(
                 sentEmailsCollection
               );
-              const sentEmailsCount = countSnapshot.data().count; // Optimized count retrieval
+              const sentEmailsCount = countSnapshot.data().count;
 
               return {
                 ...rtdbUser,
@@ -87,10 +86,7 @@ export default function UsersList() {
               };
             }
           } catch (error) {
-            console.error(
-              `Error fetching Firestore data for ${rtdbUser.email}:`,
-              error
-            );
+            console.error(`Error fetching Firestore data for ${rtdbUser.email}:`, error);
             return {
               ...rtdbUser,
               enrollment: "",
@@ -103,11 +99,22 @@ export default function UsersList() {
 
         const enrichedUsers = await Promise.all(firestoreUsersPromises);
         setUsers(enrichedUsers);
+        setFilteredUsers(enrichedUsers); // Initialize filtered users
       };
 
       fetchFirestoreData();
     }
   }, [isAdmin, rtdbUsers, rtdbLoading]);
+
+  // Filter users based on search term
+  useEffect(() => {
+    const filtered = users.filter((user) =>
+      [user.email, user.name, user.enrollment].some((field) =>
+        field?.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    );
+    setFilteredUsers(filtered);
+  }, [searchTerm, users]);
 
   const handleDeleteUser = async () => {
     if (!selectedUser) return;
@@ -144,13 +151,11 @@ export default function UsersList() {
 
   const handleRoleChange = async (email, role) => {
     try {
-      // Update role in Realtime Database
       const updatedUsers = users.map((u) =>
         u.email === email ? { ...u, role } : u
       );
       await set(ref(rtdb, "users"), updatedUsers);
 
-      // Send request to set custom claim
       await fetch("/api/setCustomClaim", {
         method: "POST",
         headers: {
@@ -182,6 +187,16 @@ export default function UsersList() {
             <CardTitle className="text-center">Users List</CardTitle>
           </CardHeader>
           <CardContent>
+            {/* Search Bar */}
+            <div className="mb-4">
+              <Input
+                type="text"
+                placeholder="Search by email, name, or enrollment..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full"
+              />
+            </div>
             <div className="max-h-[400px] overflow-y-auto">
               {rtdbLoading ? (
                 <div>Loading...</div>
@@ -200,7 +215,7 @@ export default function UsersList() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {users.map((user, index) => (
+                    {filteredUsers.map((user, index) => (
                       <TableRow key={index}>
                         <TableCell>{index + 1}</TableCell>
                         <TableCell>{user.email}</TableCell>
@@ -247,7 +262,6 @@ export default function UsersList() {
         </Card>
       </div>
 
-      {/* Confirmation Dialog */}
       <AlertDialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <AlertDialogContent>
           <AlertDialogTitle>Confirm Deletion</AlertDialogTitle>
@@ -264,7 +278,6 @@ export default function UsersList() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Success/Error Alert Dialog */}
       <AlertDialog open={alertOpen} onOpenChange={setAlertOpen}>
         <AlertDialogContent>
           <AlertDialogTitle>{isError ? "Error" : "Success"}</AlertDialogTitle>
