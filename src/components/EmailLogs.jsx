@@ -2,10 +2,29 @@
 
 import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { ReloadIcon } from "@radix-ui/react-icons";
-import { getFirestore, collection, getDocs, query, orderBy, limit, startAfter, startAt, doc, writeBatch } from "firebase/firestore";
+import {
+  getFirestore,
+  collection,
+  getDocs,
+  query,
+  orderBy,
+  limit,
+  startAfter,
+  startAt,
+  doc,
+  writeBatch,
+  getCountFromServer,
+} from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { CopyIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -39,13 +58,15 @@ export default function EmailLogs(props) {
       if (!user) throw new Error("User not authenticated");
 
       const db = getFirestore();
-      const collectionPath = props.uid ? `users/${props.uid}/sentEmails` : props.collectionPath;
+      const collectionPath = props.uid
+        ? `users/${props.uid}/sentEmails`
+        : props.collectionPath;
       const emailsRef = collection(db, collectionPath);
 
       // Get total count of documents (only on first load or refresh)
       if (!next && !prev) {
-        const snapshot = await getDocs(emailsRef);
-        setTotalDocs(snapshot.size);
+        const countSnapshot = await getCountFromServer(emailsRef);
+        setTotalDocs(countSnapshot.data().count);
         setCurrentPage(1);
       }
 
@@ -53,10 +74,20 @@ export default function EmailLogs(props) {
       const pageSize = 10;
 
       if (next && lastDoc) {
-        q = query(emailsRef, orderBy("sentAt", "desc"), startAfter(lastDoc), limit(pageSize));
+        q = query(
+          emailsRef,
+          orderBy("sentAt", "desc"),
+          startAfter(lastDoc),
+          limit(pageSize)
+        );
         setCurrentPage(currentPage + 1);
       } else if (prev && prevDocs.length > 0) {
-        q = query(emailsRef, orderBy("sentAt", "desc"), startAt(prevDocs[prevDocs.length - 1]), limit(pageSize));
+        q = query(
+          emailsRef,
+          orderBy("sentAt", "desc"),
+          startAt(prevDocs[prevDocs.length - 1]),
+          limit(pageSize)
+        );
         setPrevDocs(prevDocs.slice(0, -1));
         setCurrentPage(currentPage - 1);
       } else {
@@ -75,7 +106,10 @@ export default function EmailLogs(props) {
 
       if (next) setPrevDocs([...prevDocs, firstDoc]);
 
-      const emailLogs = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      const emailLogs = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
       setLogs(emailLogs);
       setFilteredLogs(emailLogs);
 
@@ -96,7 +130,7 @@ export default function EmailLogs(props) {
           try {
             const { status, reason } = await fetchMailgunStatus(log.messageId);
             if (status === "failed") {
-              return { ...log, status, reason }
+              return { ...log, status, reason };
             }
             return status !== log.status ? { ...log, status, reason } : null;
           } catch (error) {
@@ -114,7 +148,9 @@ export default function EmailLogs(props) {
       setLogs((prevLogs) =>
         prevLogs.map((log) => {
           const updatedLog = filteredUpdatedLogs.find((ul) => ul.id === log.id);
-          return updatedLog ? { ...log, status: updatedLog.status, reason: updatedLog.reason } : log;
+          return updatedLog
+            ? { ...log, status: updatedLog.status, reason: updatedLog.reason }
+            : log;
         })
       );
 
@@ -144,11 +180,13 @@ export default function EmailLogs(props) {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch status for message ID: ${cleanedMessageId}`);
+      throw new Error(
+        `Failed to fetch status for message ID: ${cleanedMessageId}`
+      );
     }
 
     const data = await response.json();
-    console.log(data.items[0]["delivery-status"].message)
+    console.log(data.items[0]["delivery-status"].message);
     const event = data.items[0] || {};
 
     return {
@@ -160,7 +198,10 @@ export default function EmailLogs(props) {
   // Update logs with Mailgun statuses and patch Firestore
   const updateLogsStatus = async (logs) => {
     const logsToCheck = logs.filter(
-      (log) => log.status !== "delivered" && log.status !== "failed" && log.status !== "queued"
+      (log) =>
+        log.status !== "delivered" &&
+        log.status !== "failed" &&
+        log.status !== "queued"
     );
 
     const statusPromises = logsToCheck.map(async (log) => {
@@ -206,11 +247,19 @@ export default function EmailLogs(props) {
 
         // Update Firestore: Global and User-specific email logs
         const globalDocRef = doc(db, "sentEmails", id);
-        batch.set(globalDocRef, { status: log.status, reason: log.reason }, { merge: true });
+        batch.set(
+          globalDocRef,
+          { status: log.status, reason: log.reason },
+          { merge: true }
+        );
 
         if (uid) {
           const userDocRef = doc(db, `users/${uid}/sentEmails`, id);
-          batch.set(userDocRef, { status: log.status, reason: log.reason }, { merge: true });
+          batch.set(
+            userDocRef,
+            { status: log.status, reason: log.reason },
+            { merge: true }
+          );
         }
 
         // Update RTDB: Global emailStats and user-specific emailStats
@@ -224,7 +273,9 @@ export default function EmailLogs(props) {
             // Remove email ID from previous categories
             ["failed", "unknown", "queued", "delivered"].forEach((category) => {
               if (emailStats[category] && emailStats[category].includes(id)) {
-                emailStats[category] = emailStats[category].filter((emailId) => emailId !== id);
+                emailStats[category] = emailStats[category].filter(
+                  (emailId) => emailId !== id
+                );
               }
             });
 
@@ -266,7 +317,11 @@ export default function EmailLogs(props) {
   }, [searchQuery, logs]);
 
   if (error) {
-    return <div className="flex justify-center items-center h-screen">Error loading logs: {error.message}</div>;
+    return (
+      <div className="flex justify-center items-center h-screen">
+        Error loading logs: {error.message}
+      </div>
+    );
   }
 
   if (logsLoading) {
@@ -280,7 +335,9 @@ export default function EmailLogs(props) {
           <div className="flex justify-between items-center">
             <CardTitle>
               {props.userData && props.userData.name
-                ? `Email Logs for ${props.userData.name} (${props.userData.rollNumber || ""})`
+                ? `Email Logs for ${props.userData.name} (${
+                    props.userData.rollNumber || ""
+                  })`
                 : "Email Logs"}
             </CardTitle>
             <div className="flex gap-2">
@@ -290,18 +347,32 @@ export default function EmailLogs(props) {
                 </Button>
               )}
               <Button onClick={() => fetchEmailLogs()} disabled={refreshing}>
-                {refreshing ? <ReloadIcon className="animate-spin" /> : "Refresh"}
+                {refreshing ? (
+                  <ReloadIcon className="animate-spin" />
+                ) : (
+                  "Refresh"
+                )}
               </Button>
               <Button onClick={() => recheckStatuses()} disabled={refreshing}>
-                {refreshing ? <ReloadIcon className="animate-spin" /> : "Recheck Status"}
+                {refreshing ? (
+                  <ReloadIcon className="animate-spin" />
+                ) : (
+                  "Recheck Status"
+                )}
               </Button>
             </div>
           </div>
           <div className="mt-2 text-sm text-gray-500">
             {searchQuery ? (
-              <>Showing {filteredLogs.length} of {logs.length} filtered logs (out of {totalDocs} total)</>
+              <>
+                Showing {filteredLogs.length} of {logs.length} filtered logs
+                (out of {totalDocs} total)
+              </>
             ) : (
-              <>Showing {(currentPage - 1) * 10 + 1} - {Math.min(currentPage * 10, totalDocs)} of {totalDocs} logs</>
+              <>
+                Showing {(currentPage - 1) * 10 + 1} -{" "}
+                {Math.min(currentPage * 10, totalDocs)} of {totalDocs} logs
+              </>
             )}
           </div>
         </CardHeader>
@@ -329,11 +400,14 @@ export default function EmailLogs(props) {
             ) : (
               <>
                 {props.uid ? (
-                  <div className="text-center text-gray-500 p-4">No email logs found for this user.</div>
+                  <div className="text-center text-gray-500 p-4">
+                    No email logs found for this user.
+                  </div>
                 ) : (
                   <div className="text-center text-gray-500 p-4">
-                    Wow, look at that! A whole lot of... NOTHING. Maybe if you actually sent some emails instead of
-                    just chilling, this wouldn't be empty ¯\_(ツ)_/¯
+                    Wow, look at that! A whole lot of... NOTHING. Maybe if you
+                    actually sent some emails instead of just chilling, this
+                    wouldn't be empty ¯\_(ツ)_/¯
                   </div>
                 )}
               </>
@@ -342,7 +416,10 @@ export default function EmailLogs(props) {
         </div>
         {/* Pagination Buttons */}
         <div className="flex justify-between p-4">
-          <Button onClick={() => fetchEmailLogs(false, true)} disabled={prevDocs.length === 0}>
+          <Button
+            onClick={() => fetchEmailLogs(false, true)}
+            disabled={prevDocs.length === 0}
+          >
             Previous
           </Button>
           <Button onClick={() => fetchEmailLogs(true)} disabled={!hasMore}>
@@ -359,7 +436,11 @@ const EmailRow = ({ log }) => {
 
   return (
     <>
-      <TableRow key={log.id} onClick={() => setExpanded(!expanded)} className="cursor-pointer">
+      <TableRow
+        key={log.id}
+        onClick={() => setExpanded(!expanded)}
+        className="cursor-pointer"
+      >
         <TableCell>{log.fromEmail}</TableCell>
         <TableCell>{log.template}</TableCell>
         <TableCell>{log.name}</TableCell>
@@ -373,26 +454,30 @@ const EmailRow = ({ log }) => {
                   log.status === "delivered"
                     ? "green"
                     : log.status === "failed"
-                      ? "red"
-                      : log.status === "bounced"
-                        ? "orange"
-                        : "gray",
+                    ? "red"
+                    : log.status === "bounced"
+                    ? "orange"
+                    : "gray",
               }}
             ></span>
             {log.status || "Checking..."}
-            {log.status === "failed" && <button
-              className="p-1"
-              onClick={(e) => {
-                e.stopPropagation();
-                setExpanded(!expanded);
-              }}
-            >
-              {expanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
-            </button>}
+            {log.status === "failed" && (
+              <button
+                className="p-1"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setExpanded(!expanded);
+                }}
+              >
+                {expanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
+              </button>
+            )}
           </div>
         </TableCell>
 
-        <TableCell>{log.sentAt ? new Date(log.sentAt).toLocaleString() : "N/A"}</TableCell>
+        <TableCell>
+          {log.sentAt ? new Date(log.sentAt).toLocaleString() : "N/A"}
+        </TableCell>
         <TableCell>
           <button
             onClick={() => {
@@ -408,7 +493,8 @@ const EmailRow = ({ log }) => {
       {expanded && log.status === "failed" && (
         <TableRow>
           <TableCell colSpan={7} className="bg-red-900 text-red-300 p-4">
-            <strong>Failure Reason:</strong> {log.reason || "No details available"}
+            <strong>Failure Reason:</strong>{" "}
+            {log.reason || "No details available"}
           </TableCell>
         </TableRow>
       )}
