@@ -4,15 +4,16 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
+import { signOut } from "firebase/auth";
 
 export default function BlockedUserOverlay() {
   const router = useRouter();
   const [secondsLeft, setSecondsLeft] = useState(5);
-  const [deleting, setDeleting] = useState(false);
+  const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
     if (secondsLeft <= 0) {
-      handleDelete();
+      handleDeleteAndLogout();
       return;
     }
 
@@ -23,24 +24,23 @@ export default function BlockedUserOverlay() {
     return () => clearTimeout(timer);
   }, [secondsLeft]);
 
-  const handleDelete = async () => {
-    if (deleting) return;
-    setDeleting(true);
+  const handleDeleteAndLogout = async () => {
+    if (processing) return;
+    setProcessing(true);
 
     try {
       const user = auth.currentUser;
-      if (!user?.email) return;
-
-      await fetch("/api/deleteUser", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: user.email }),
-      });
-
-      // Firebase SDK auto signs out when user is deleted
-      router.replace("/");
+      if (user?.email) {
+        await fetch("/api/delete-user", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: user.email }),
+        });
+      }
     } catch (err) {
       console.error("Failed to delete user:", err);
+    } finally {
+      await signOut(auth);
       router.replace("/");
     }
   };
@@ -55,9 +55,7 @@ export default function BlockedUserOverlay() {
         <p className="text-sm text-zinc-300">
           You must sign in using your official college email:
           <br />
-          <span className="font-mono text-white">
-            @mail.jiit.ac.in
-          </span>
+          <span className="font-mono text-white">@mail.jiit.ac.in</span>
         </p>
 
         <p className="text-sm text-zinc-400">
@@ -68,11 +66,7 @@ export default function BlockedUserOverlay() {
           seconds.
         </p>
 
-        <Button
-          variant="destructive"
-          className="w-full"
-          disabled
-        >
+        <Button variant="destructive" className="w-full" disabled>
           Removing account…
         </Button>
       </div>

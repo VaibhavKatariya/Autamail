@@ -9,25 +9,20 @@ const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [firebaseUser, authLoading] = useAuthState(auth);
-
-  const [role, setRole] = useState(undefined); // ⬅️ important
-  const [blocked, setBlocked] = useState(false);
+  const [role, setRole] = useState(undefined);
   const [checkingAuth, setCheckingAuth] = useState(true);
 
   useEffect(() => {
     const run = async () => {
       if (!firebaseUser) {
         setRole(undefined);
-        setBlocked(false);
         setCheckingAuth(false);
         return;
       }
 
-      setBlocked(false);
-      
       try {
         const token = await getIdTokenResult(firebaseUser);
-        setRole(token.claims.role ?? null); 
+        setRole(token.claims.role ?? null);
       } catch {
         setRole(null);
       } finally {
@@ -42,9 +37,8 @@ export const AuthProvider = ({ children }) => {
     <AuthContext.Provider
       value={{
         user: firebaseUser,
-        role,                 
+        role,
         isAdmin: role === "admin",
-        blocked,
         loading: authLoading || checkingAuth,
       }}
     >
@@ -53,10 +47,4 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
-export const useAuth = () => {
-  const ctx = useContext(AuthContext);
-  if (!ctx) {
-    throw new Error("useAuth must be used inside AuthProvider");
-  }
-  return ctx;
-};
+export const useAuth = () => useContext(AuthContext);
