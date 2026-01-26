@@ -80,6 +80,7 @@ export default function ApproveUsers() {
       }
 
       toast.success(data.message);
+      window.dispatchEvent(new Event("users-updated"));
       setUsers((prev) => prev.filter((u) => u.uid !== uid));
     } catch {
       toast.error("Action failed");
