@@ -31,7 +31,7 @@ export default function BlockedUserOverlay() {
     try {
       const user = auth.currentUser;
       if (user?.email) {
-        await fetch("/api/delete-user", {
+        await fetch("/api/deleteUser", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email: user.email }),

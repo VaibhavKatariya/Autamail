@@ -45,7 +45,6 @@ export default function RequestAccessPage() {
 
   const handleConfirm = async () => {
     if (!isCollegeEmail) {
-      toast.error("Please use your @mail.jiit.ac.in email");
       setShowBlockedOverlay(true);
       return;
     }
