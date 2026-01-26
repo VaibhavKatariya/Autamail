@@ -9,31 +9,43 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/context/AuthContext";
-import { redirect } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 export default function DashboardLayout({ children }) {
-  const { user, loading } = useAuth();
+  const { user, role, loading, checkingAuth } = useAuth();
+  const router = useRouter();
 
-  const isMaintenanceMode =
-    process.env.NEXT_PUBLIC_MAINTENANCE_MODE === "true";
+  const isMaintenanceMode = process.env.NEXT_PUBLIC_MAINTENANCE_MODE === "true";
 
-  if (loading) {
+  useEffect(() => {
+    if (loading || checkingAuth) return;
+
+    // 🔒 Not logged in
+    if (!user) {
+      router.replace("/");
+      return;
+    }
+
+    if (role === null) {
+      router.replace("/requestAccess");
+    }
+  }, [user, role, loading, checkingAuth, router]);
+
+  if (loading || checkingAuth) {
     return <SendEmailFormSkeleton />;
   }
 
-  if (!user) {
-    redirect("/");
-  }
+  // Prevent UI flash
+  if (!user || !role) return null;
 
   if (isMaintenanceMode) {
     return (
       <div className="dark:text-white flex flex-col items-center justify-center w-full h-screen p-4">
-        <h1 className="text-3xl font-bold mb-4">
-          Maintenance in Progress
-        </h1>
+        <h1 className="text-3xl font-bold mb-4">Maintenance in Progress</h1>
         <p className="text-lg text-center">
-          The app is currently unavailable due to scheduled maintenance.
-          Please try again later.
+          The app is currently unavailable due to scheduled maintenance. Please
+          try again later.
         </p>
       </div>
     );

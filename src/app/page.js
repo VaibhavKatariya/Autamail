@@ -1,32 +1,33 @@
 "use client";
 
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { useSignInWithGoogle } from "react-firebase-hooks/auth";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
 
 export default function HomePage() {
   const router = useRouter();
-  const { user, role, loading } = useAuth();
-  const [signInWithGoogle, signingIn, error] = useSignInWithGoogle(auth);
+  const { user, loading, role } = useAuth();
+  const [signInWithGoogle, signingIn, error] =
+    useSignInWithGoogle(auth);
 
-  // 🔁 Redirect logged-in users
-  if (!loading && user) {
-    router.replace("/dashboard");
-    return null;
-  }
-
-  const handleGoogleSignIn = async () => {
-    try {
-      await signInWithGoogle();
-    } catch (err) {
-      console.error("Google Sign-In failed:", err);
+  // ✅ Redirect AFTER render
+  useEffect(() => {
+    if (!loading && user) {
+      router.replace("/dashboard");
     }
-  };
+  }, [user, loading, router]);
 
-  // ⏳ Global loading
+  // ⏳ Loading state
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-black text-white">
@@ -35,7 +36,7 @@ export default function HomePage() {
     );
   }
 
-  // 👤 Not logged in → show login
+  // 👤 Logged in users won't see this due to redirect
   return (
     <div className="flex min-h-screen items-center justify-center bg-black">
       <Card className="w-[350px] bg-zinc-900 text-white border-zinc-800">
@@ -51,7 +52,7 @@ export default function HomePage() {
           <Button
             className="w-full bg-white hover:bg-zinc-200 text-black"
             size="lg"
-            onClick={handleGoogleSignIn}
+            onClick={() => signInWithGoogle()}
             disabled={signingIn}
           >
             {signingIn ? "Signing in..." : "Login with Google"}

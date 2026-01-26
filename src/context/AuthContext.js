@@ -10,40 +10,46 @@ const AuthContext = createContext(null);
 export const AuthProvider = ({ children }) => {
   const [firebaseUser, authLoading] = useAuthState(auth);
 
-  const [role, setRole] = useState(null);
-  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [role, setRole] = useState(undefined); 
+  // undefined = not loaded yet
+  // null = loaded, but no role (pending)
+  // "user" | "admin" = approved
+
+  const [claimsLoaded, setClaimsLoaded] = useState(false);
 
   useEffect(() => {
     const loadClaims = async () => {
       if (!firebaseUser) {
-        setRole(null);
-        setCheckingAuth(false);
+        setRole(undefined);
+        setClaimsLoaded(true);
         return;
       }
 
       try {
-        const tokenResult = await getIdTokenResult(firebaseUser);
-        setRole(tokenResult.claims.role || "user");
-      } catch (error) {
-        console.error("Failed to read custom claims:", error);
-        setRole("user");
+        const tokenResult = await getIdTokenResult(firebaseUser, true);
+        setRole(tokenResult.claims.role ?? null);
+      } catch (err) {
+        console.error("Failed to load claims", err);
+        setRole(null);
       } finally {
-        setCheckingAuth(false);
+        setClaimsLoaded(true);
       }
     };
 
+    setClaimsLoaded(false);
     loadClaims();
   }, [firebaseUser]);
 
-  const value = {
-    user: firebaseUser,
-    role,
-    isAdmin: role === "admin",
-    loading: authLoading || checkingAuth
-  };
-
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider
+      value={{
+        user: firebaseUser,
+        role,
+        isAdmin: role === "admin",
+        loading: authLoading || !claimsLoaded,
+        claimsLoaded,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -51,8 +57,6 @@ export const AuthProvider = ({ children }) => {
 
 export const useAuth = () => {
   const ctx = useContext(AuthContext);
-  if (!ctx) {
-    throw new Error("useAuth must be used inside AuthProvider");
-  }
+  if (!ctx) throw new Error("useAuth must be used inside AuthProvider");
   return ctx;
 };

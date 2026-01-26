@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, use } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -19,31 +19,50 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import AccessRequestFormSkeleton from "@/components/skeletonUI/requestAccessSkeleton";
 
-export default function AccessRequestForm() {
-  const { user, loading, isAdmin, checkingAuth } = useAuth();
+export default function AccessRequestPage() {
+  const { user, role, loading, checkingAuth } = useAuth();
+  const router = useRouter();
+
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [enrollment, setEnrollment] = useState("");
   const [emailError, setEmailError] = useState("");
   const [enrollmentError, setEnrollmentError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+
   const formRef = useRef(null);
   const formId = "1gorhcyw1lG-opaLOTnSK3IgyzPNR9K-Q05B3TGsS4Jc";
-  const router = useRouter();
 
-  if (user) {
-    router.replace("/");
+  // ✅ ALL redirects happen here
+  useEffect(() => {
+    if (loading || checkingAuth) return;
+
+    // Not logged in
+    if (!user) {
+      router.replace("/");
+      return;
+    }
+
+    // Already approved
+    if (role) {
+      router.replace("/dashboard");
+    }
+  }, [user, role, loading, checkingAuth, router]);
+
+  // ⏳ Loading state
+  if (loading || checkingAuth) {
+    return <AccessRequestFormSkeleton />;
+  }
+
+  // Prevent flash while redirecting
+  if (!user || role) {
     return null;
   }
 
-  if (loading || checkingAuth) {
-    return <AccessRequestFormSkeleton />
-  }
-
-  const validateEmail = (email) => {
+  const validateEmail = (value) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (!emailRegex.test(value)) {
       setEmailError("Please enter a valid email address.");
       return false;
     }
@@ -51,9 +70,9 @@ export default function AccessRequestForm() {
     return true;
   };
 
-  const validateEnrollment = (enrollment) => {
+  const validateEnrollment = (value) => {
     const enrollmentRegex = /^\d{10}$/;
-    if (!enrollmentRegex.test(enrollment)) {
+    if (!enrollmentRegex.test(value)) {
       setEnrollmentError("Enrollment number must be exactly 10 digits.");
       return false;
     }
@@ -61,45 +80,41 @@ export default function AccessRequestForm() {
     return true;
   };
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    const isEmailValid = validateEmail(email);
-    const isEnrollmentValid = validateEnrollment(enrollment);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
 
-    if (!isEmailValid || !isEnrollmentValid) {
-      return;
-    }
+    if (!validateEmail(email) || !validateEnrollment(enrollment)) return;
 
-    const form = formRef.current;
-    if (form) {
-      try {
-        setIsSubmitting(true);
-        form.submit();
-        form.reset();
-        toast.success("Access request sent successfully!");
-        setName("");
-        setEmail("");
-        setEnrollment("");
-        setIsDialogOpen(true);
-      } catch (error) {
-        toast.error("Error sending request. Please try again.");
-      } finally {
-        setIsSubmitting(false);
-      }
+    try {
+      setIsSubmitting(true);
+      formRef.current.submit();
+      formRef.current.reset();
+
+      toast.success("Access request sent successfully");
+      setName("");
+      setEmail("");
+      setEnrollment("");
+      setDialogOpen(true);
+    } catch {
+      toast.error("Failed to submit request");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
     <div className="flex justify-center items-center min-h-screen">
-      <Card className="w-full max-w-2xl mx-auto">
+      <Card className="w-full max-w-2xl">
         <CardHeader>
-          <CardTitle>Request Access to the Site</CardTitle>
+          <CardTitle>Request Access</CardTitle>
           <p className="text-sm text-gray-500">
-            The email provided does not need to be your official college email; use the one from which you want access.
+            You are logged in but not approved yet.
           </p>
         </CardHeader>
+
         <CardContent>
-          <iframe name="iframe_form" id="iframe_form" style={{ display: "none" }}></iframe>
+          <iframe name="iframe_form" style={{ display: "none" }} />
+
           <form
             ref={formRef}
             action={`https://docs.google.com/forms/d/${formId}/formResponse`}
@@ -108,73 +123,62 @@ export default function AccessRequestForm() {
             onSubmit={handleSubmit}
             className="space-y-4"
           >
-            <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
+            <div>
+              <Label>Full Name</Label>
               <Input
-                id="name"
                 name="entry.2005620554"
-                aria-label="Full Name"
-                type="text"
-                placeholder="John Doe"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+
+            <div>
+              <Label>Email</Label>
               <Input
-                id="email"
                 name="entry.1045781291"
-                aria-label="Email"
-                type="email"
-                placeholder="your@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 onBlur={() => validateEmail(email)}
                 required
               />
-              {emailError && <p className="text-red-500 text-sm">{emailError}</p>}
+              {emailError && (
+                <p className="text-red-500 text-sm">{emailError}</p>
+              )}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="enrollment">Enrollment Number</Label>
+
+            <div>
+              <Label>Enrollment Number</Label>
               <Input
-                id="enrollment"
                 name="entry.1065046570"
-                aria-label="Enrollment Number"
-                type="text"
-                placeholder="Ex: 992310XXXX"
                 value={enrollment}
                 onChange={(e) => setEnrollment(e.target.value)}
                 onBlur={() => validateEnrollment(enrollment)}
                 required
               />
-              {enrollmentError && <p className="text-red-500 text-sm">{enrollmentError}</p>}
+              {enrollmentError && (
+                <p className="text-red-500 text-sm">{enrollmentError}</p>
+              )}
             </div>
-            <Button type="submit" disabled={isSubmitting} className="w-full">
+
+            <Button disabled={isSubmitting} className="w-full">
               {isSubmitting ? "Submitting..." : "Request Access"}
             </Button>
           </form>
         </CardContent>
       </Card>
 
-      {/* Alert Dialog */}
-      <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <AlertDialog open={dialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Request Under Review</AlertDialogTitle>
+            <AlertDialogTitle>Request Submitted</AlertDialogTitle>
             <AlertDialogDescription>
-              Your request has been submitted and is under review. Please check back later.
+              Your request is under review. You’ll be notified once approved.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogAction
-              onClick={() => {
-                setIsDialogOpen(false);
-                router.replace("/");
-              }}
-            >
-              Got it
+            <AlertDialogAction onClick={() => setDialogOpen(false)}>
+              OK
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
