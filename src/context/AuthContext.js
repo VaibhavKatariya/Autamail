@@ -2,38 +2,57 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useAuthState } from "react-firebase-hooks/auth";
+import { getIdTokenResult } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, loading] = useAuthState(auth);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [firebaseUser, authLoading] = useAuthState(auth);
+
+  const [role, setRole] = useState(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
 
   useEffect(() => {
-    const checkUserRole = async () => {
-      if (user) {
-        try {
-          const tokenResult = await user.getIdTokenResult(true); // Force refresh token
-          const role = tokenResult.claims.role; // Get role from custom claims
-          
-          setIsAdmin(role === "admin"); // Set isAdmin based on role
-        } catch (err) {
-          console.error("Error fetching user claims:", err);
-        }
+    const loadClaims = async () => {
+      if (!firebaseUser) {
+        setRole(null);
+        setCheckingAuth(false);
+        return;
       }
-      setCheckingAuth(false);
+
+      try {
+        const tokenResult = await getIdTokenResult(firebaseUser);
+        setRole(tokenResult.claims.role || "user");
+      } catch (error) {
+        console.error("Failed to read custom claims:", error);
+        setRole("user");
+      } finally {
+        setCheckingAuth(false);
+      }
     };
 
-    checkUserRole();
-  }, [user]);
+    loadClaims();
+  }, [firebaseUser]);
+
+  const value = {
+    user: firebaseUser,
+    role,
+    isAdmin: role === "admin",
+    loading: authLoading || checkingAuth
+  };
 
   return (
-    <AuthContext.Provider value={{ user, loading, isAdmin, checkingAuth }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
 };
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+  const ctx = useContext(AuthContext);
+  if (!ctx) {
+    throw new Error("useAuth must be used inside AuthProvider");
+  }
+  return ctx;
+};
