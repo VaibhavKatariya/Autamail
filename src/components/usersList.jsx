@@ -1,290 +1,256 @@
+"use client";
+
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { useObjectVal } from "react-firebase-hooks/database";
-import { ref, set } from "firebase/database";
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  getCountFromServer,
-} from "firebase/firestore";
-import { useAuth } from "@/context/AuthContext";
-import { rtdb, db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input"; // Import Input component
+import { Input } from "@/components/ui/input";
+import { useAuth } from "@/context/AuthContext";
+import { toast } from "sonner";
 import {
   AlertDialog,
   AlertDialogContent,
+  AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogDescription,
+  AlertDialogFooter,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 
 export default function UsersList() {
-  const { user, isAdmin } = useAuth();
+  const { isAdmin, user: currentUser } = useAuth();
+
   const [users, setUsers] = useState([]);
-  const [filteredUsers, setFilteredUsers] = useState([]); // State for filtered users
-  const [searchTerm, setSearchTerm] = useState(""); // State for search input
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [alertMessage, setAlertMessage] = useState("");
-  const [isError, setIsError] = useState(false);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [alertOpen, setAlertOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState("");
 
-  const [rtdbUsers, rtdbLoading, rtdbError] = useObjectVal(ref(rtdb, "users"));
+  const [selected, setSelected] = useState([]);
+  const [confirmMode, setConfirmMode] = useState(null); // "single" | "bulk"
+  const [confirmUsers, setConfirmUsers] = useState([]);
 
   useEffect(() => {
-    if (isAdmin && !rtdbLoading && rtdbUsers) {
-      const fetchFirestoreData = async () => {
-        const rtdbUsersArray = rtdbUsers ? Object.values(rtdbUsers) : [];
+    if (!isAdmin) return;
+    fetchUsers(1);
+  }, [isAdmin]);
 
-        const firestoreUsersPromises = rtdbUsersArray.map(async (rtdbUser) => {
-          try {
-            const usersCollection = collection(db, "users");
-            const q = query(
-              usersCollection,
-              where("email", "==", rtdbUser.email)
-            );
-            const querySnapshot = await getDocs(q);
+  const fetchUsers = async (pageNo) => {
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/users?page=${pageNo}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error();
 
-            if (!querySnapshot.empty) {
-              const userDoc = querySnapshot.docs[0];
-              const firestoreData = userDoc.data();
-
-              const sentEmailsCollection = collection(
-                db,
-                `users/${userDoc.id}/sentEmails`
-              );
-              const countSnapshot = await getCountFromServer(
-                sentEmailsCollection
-              );
-              const sentEmailsCount = countSnapshot.data().count;
-
-              return {
-                ...rtdbUser,
-                enrollment: firestoreData.rollNumber || "",
-                name: firestoreData.name || "",
-                hasLoggedIn: true,
-                sentEmailsCount,
-              };
-            } else {
-              return {
-                ...rtdbUser,
-                enrollment: "",
-                name: "",
-                hasLoggedIn: false,
-                sentEmailsCount: 0,
-              };
-            }
-          } catch (error) {
-            console.error(`Error fetching Firestore data for ${rtdbUser.email}:`, error);
-            return {
-              ...rtdbUser,
-              enrollment: "",
-              name: "",
-              hasLoggedIn: false,
-              sentEmailsCount: 0,
-            };
-          }
-        });
-
-        const enrichedUsers = await Promise.all(firestoreUsersPromises);
-        setUsers(enrichedUsers);
-        setFilteredUsers(enrichedUsers); // Initialize filtered users
-      };
-
-      fetchFirestoreData();
+      setUsers(pageNo === 1 ? data.users : [...users, ...data.users]);
+      setHasMore(data.hasMore);
+      setPage(pageNo);
+    } catch {
+      toast.error("Failed to load users");
+    } finally {
+      setLoading(false);
     }
-  }, [isAdmin, rtdbUsers, rtdbLoading]);
+  };
 
-  // Filter users based on search term
-  useEffect(() => {
-    const filtered = users.filter((user) =>
-      [user.email, user.name, user.enrollment].some((field) =>
-        field?.toLowerCase().includes(searchTerm.toLowerCase())
-      )
+  const toggleSelect = (uid) => {
+    setSelected((prev) =>
+      prev.includes(uid) ? prev.filter((x) => x !== uid) : [...prev, uid]
     );
-    setFilteredUsers(filtered);
-  }, [searchTerm, users]);
-
-  const handleDeleteUser = async () => {
-    if (!selectedUser) return;
-
-    try {
-      const response = await fetch("/api/deleteUser", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email: selectedUser.email }),
-      });
-
-      const result = await response.json();
-      if (!response.ok)
-        throw new Error(result.message || "Failed to delete user");
-
-      setAlertMessage(`User ${selectedUser.email} deleted successfully!`);
-      setIsError(false);
-
-      setUsers(users.filter((u) => u.email !== selectedUser.email));
-    } catch (error) {
-      console.error("Error deleting user:", error);
-      setAlertMessage(
-        error.message || "Failed to delete user. Please try again."
-      );
-      setIsError(true);
-    }
-
-    setDialogOpen(false);
-    setAlertOpen(true);
-    setSelectedUser(null);
   };
 
-  const handleRoleChange = async (email, role) => {
-    try {
-      const updatedUsers = users.map((u) =>
-        u.email === email ? { ...u, role } : u
-      );
-      await set(ref(rtdb, "users"), updatedUsers);
+  const openSingleDelete = (user) => {
+    if (user.uid === currentUser.uid) {
+      toast.error("You cannot delete your own admin account");
+      return;
+    }
+    setConfirmUsers([user]);
+    setConfirmMode("single");
+  };
 
-      await fetch("/api/setCustomClaim", {
+  const openBulkDelete = () => {
+    const targets = users.filter(
+      (u) => selected.includes(u.uid) && u.uid !== currentUser.uid
+    );
+
+    if (!targets.length) {
+      toast.error("No valid users selected");
+      return;
+    }
+
+    setConfirmUsers(targets);
+    setConfirmMode("bulk");
+  };
+
+  const confirmDelete = async () => {
+    try {
+      const res = await fetch("/api/users", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, role }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "delete",
+          uids: confirmUsers.map((u) => u.uid),
+        }),
       });
 
-      setAlertMessage(`Role updated successfully for ${email}!`);
-      setIsError(false);
-      setAlertOpen(true);
-    } catch (error) {
-      console.error("Error updating role:", error);
-      setAlertMessage("Failed to update role. Please try again.");
-      setIsError(true);
-      setAlertOpen(true);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+
+      toast.success(
+        confirmMode === "bulk"
+          ? "Users deleted successfully"
+          : "User deleted successfully"
+      );
+
+      setUsers((u) =>
+        u.filter((x) => !confirmUsers.some((d) => d.uid === x.uid))
+      );
+      setSelected([]);
+    } catch {
+      toast.error("Delete failed");
+    } finally {
+      setConfirmUsers([]);
+      setConfirmMode(null);
     }
   };
 
-  if (rtdbError) {
-    return <div>Error loading users: {rtdbError.message}</div>;
-  }
+  const handleRoleChange = async (uid, role) => {
+    try {
+      const res = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "change-role", uid, role }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+
+      toast.success("Role updated");
+      setUsers((u) =>
+        u.map((x) => (x.uid === uid ? { ...x, role } : x))
+      );
+    } catch {
+      toast.error("Failed to update role");
+    }
+  };
+
+  const filtered = users.filter((u) =>
+    [u.email, u.name, u.enrollment]
+      .some((f) => f?.toLowerCase().includes(search.toLowerCase()))
+  );
 
   return (
     <>
-      <div className="flex items-center justify-center w-full">
-        <Card className="w-full max-w-4xl">
-          <CardHeader>
-            <CardTitle className="text-center">Users List</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {/* Search Bar */}
-            <div className="mb-4">
-              <Input
-                type="text"
-                placeholder="Search by email, name, or enrollment..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full"
-              />
-            </div>
-            <div className="max-h-[400px] overflow-y-auto">
-              {rtdbLoading ? (
-                <div>Loading...</div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Index</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Enrollment</TableHead>
-                      <TableHead>Has Logged In</TableHead>
-                      <TableHead>Sent Emails</TableHead>
-                      <TableHead>Role</TableHead>
-                      <TableHead>Action</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredUsers.map((user, index) => (
-                      <TableRow key={index}>
-                        <TableCell>{index + 1}</TableCell>
-                        <TableCell>{user.email}</TableCell>
-                        <TableCell>{user.name}</TableCell>
-                        <TableCell>{user.enrollment}</TableCell>
-                        <TableCell>{user.hasLoggedIn ? "Yes" : "No"}</TableCell>
-                        <TableCell>{user.sentEmailsCount}</TableCell>
-                        <TableCell>
-                          <select
-                            value={user.role}
-                            style={{
-                              backgroundColor: "black",
-                              color: "white",
-                              border: "none",
-                              padding: "0.5rem",
-                              borderRadius: "4px",
-                            }}
-                            onChange={(e) =>
-                              handleRoleChange(user.email, e.target.value)
-                            }
-                          >
-                            <option value="member">Member</option>
-                            <option value="admin">Admin</option>
-                          </select>
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="destructive"
-                            onClick={() => {
-                              setSelectedUser(user);
-                              setDialogOpen(true);
-                            }}
-                          >
-                            Remove
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <Card className="w-full max-w-5xl mx-auto">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Users</CardTitle>
+          {selected.length > 0 && (
+            <Button variant="destructive" onClick={openBulkDelete}>
+              Delete Selected ({selected.length})
+            </Button>
+          )}
+        </CardHeader>
 
-      <AlertDialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <CardContent>
+          <Input
+            placeholder="Search users..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="mb-4"
+          />
+
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead />
+                <TableHead>Email</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Enrollment</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
+
+            <TableBody>
+              {filtered.map((u) => (
+                <TableRow key={u.uid}>
+                  <TableCell>
+                    <input
+                      type="checkbox"
+                      checked={selected.includes(u.uid)}
+                      disabled={u.uid === currentUser.uid}
+                      onChange={() => toggleSelect(u.uid)}
+                    />
+                  </TableCell>
+                  <TableCell>{u.email}</TableCell>
+                  <TableCell>{u.name}</TableCell>
+                  <TableCell>{u.enrollment}</TableCell>
+                  <TableCell>
+                    <select
+                      value={u.role}
+                      onChange={(e) =>
+                        handleRoleChange(u.uid, e.target.value)
+                      }
+                      className="bg-black border px-2 py-1"
+                    >
+                      <option value="user">User</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="destructive"
+                      disabled={u.uid === currentUser.uid}
+                      onClick={() => openSingleDelete(u)}
+                    >
+                      Delete
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+
+          {hasMore && (
+            <Button
+              className="mt-4 w-full"
+              disabled={loading}
+              onClick={() => fetchUsers(page + 1)}
+            >
+              {loading ? "Loading..." : "Load More"}
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Confirmation Dialog */}
+      <AlertDialog open={confirmUsers.length > 0}>
         <AlertDialogContent>
-          <AlertDialogTitle>Confirm Deletion</AlertDialogTitle>
-          <AlertDialogDescription>
-            Are you sure you want to remove{" "}
-            <strong>{selectedUser?.email}</strong>?
-          </AlertDialogDescription>
-          <div className="flex justify-end space-x-2">
-            <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <AlertDialogAction onClick={handleDeleteUser}>
-              Remove
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmMode === "bulk" ? "Delete Users" : "Delete User"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmMode === "bulk"
+                ? `Are you sure you want to permanently delete ${confirmUsers.length} users?`
+                : `Are you sure you want to permanently delete ${confirmUsers[0]?.email}?`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setConfirmUsers([]);
+                setConfirmMode(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <AlertDialogAction onClick={confirmDelete}>
+              Delete
             </AlertDialogAction>
-          </div>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={alertOpen} onOpenChange={setAlertOpen}>
-        <AlertDialogContent>
-          <AlertDialogTitle>{isError ? "Error" : "Success"}</AlertDialogTitle>
-          <AlertDialogDescription>{alertMessage}</AlertDialogDescription>
-          <div className="flex justify-end">
-            <Button onClick={() => setAlertOpen(false)}>OK</Button>
-          </div>
+          </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </>
