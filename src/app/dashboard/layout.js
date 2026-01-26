@@ -11,6 +11,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { UsersDataProvider } from "@/context/UsersDataContext";
 
 export default function DashboardLayout({ children }) {
   const { user, role, loading, checkingAuth } = useAuth();
@@ -60,7 +61,9 @@ export default function DashboardLayout({ children }) {
             <SidebarTrigger className="-ml-1" />
             <Separator orientation="vertical" className="mr-2 h-4" />
           </header>
-          <main>{children}</main>
+          <main>
+            <UsersDataProvider>{children}</UsersDataProvider>
+          </main>
         </SidebarInset>
       </SidebarProvider>
     </div>

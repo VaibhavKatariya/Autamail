@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { useUsersData } from "@/context/UsersDataContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -17,71 +18,55 @@ import { toast } from "sonner";
 export default function ApproveUsers() {
   const { isAdmin, loading } = useAuth();
 
-  const [users, setUsers] = useState([]);
-  const [pageToken, setPageToken] = useState(null);
-  const [fetching, setFetching] = useState(false);
+  const {
+    pendingUsers,
+    setPendingUsers,
+    addApprovedUser,
+    fetchAllOnce,
+    pendingLoading,
+  } = useUsersData();
+
   const [actionLoading, setActionLoading] = useState(null);
 
-  // 🔒 Admin guard
+  // 🔒 Admin guard + fetch ONCE
   useEffect(() => {
-    if (!loading && !isAdmin) {
+    if (loading) return;
+
+    if (!isAdmin) {
       toast.error("Unauthorized");
+      return;
     }
-  }, [isAdmin, loading]);
 
-  // 📥 Fetch pending users
-  const fetchUsers = async (reset = false) => {
+    fetchAllOnce();
+  }, [isAdmin, loading, fetchAllOnce]);
+
+  const handleAction = async (user, action) => {
     try {
-      setFetching(true);
-
-      const url = reset
-        ? "/api/manageUsers"
-        : `/api/manageUsers?pageToken=${pageToken}`;
-
-      const res = await fetch(url);
-      const data = await res.json();
-
-      if (!res.ok) {
-        toast.error(data.message || "Failed to fetch users");
-        return;
-      }
-
-      setUsers((prev) =>
-        reset ? data.users : [...prev, ...data.users]
-      );
-      setPageToken(data.nextPageToken || null);
-    } catch {
-      toast.error("Something went wrong");
-    } finally {
-      setFetching(false);
-    }
-  };
-
-  useEffect(() => {
-    if (isAdmin) fetchUsers(true);
-  }, [isAdmin]);
-
-  // ✅ Approve / ❌ Disapprove
-  const handleAction = async (uid, action) => {
-    try {
-      setActionLoading(uid);
+      setActionLoading(user.uid);
 
       const res = await fetch("/api/manageUsers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, uid }),
+        body: JSON.stringify({
+          action,
+          uid: user.uid,
+        }),
       });
 
       const data = await res.json();
-
-      if (!res.ok) {
-        toast.error(data.message || "Action failed");
-        return;
-      }
+      if (!res.ok) throw new Error(data.message);
 
       toast.success(data.message);
-      window.dispatchEvent(new Event("users-updated"));
-      setUsers((prev) => prev.filter((u) => u.uid !== uid));
+
+      // ❌ remove from pending cache
+      setPendingUsers((prev) =>
+        prev.filter((u) => u.uid !== user.uid)
+      );
+
+      // ✅ if approved, push to users cache
+      if (action === "approve") {
+        addApprovedUser(data.user);
+      }
     } catch {
       toast.error("Action failed");
     } finally {
@@ -89,16 +74,16 @@ export default function ApproveUsers() {
     }
   };
 
-  if (loading) return null;
+  if (loading || pendingLoading) return null;
 
   return (
-    <Card className="w-full max-w-5xl">
+    <Card className="w-full max-w-5xl mx-auto">
       <CardHeader>
         <CardTitle>Pending Access Requests</CardTitle>
       </CardHeader>
 
       <CardContent>
-        {users.length === 0 && !fetching ? (
+        {pendingUsers.length === 0 ? (
           <p className="text-center text-muted-foreground">
             No pending requests
           </p>
@@ -115,7 +100,7 @@ export default function ApproveUsers() {
             </TableHeader>
 
             <TableBody>
-              {users.map((u, i) => (
+              {pendingUsers.map((u, i) => (
                 <TableRow key={u.uid}>
                   <TableCell>{i + 1}</TableCell>
                   <TableCell>{u.name}</TableCell>
@@ -125,7 +110,7 @@ export default function ApproveUsers() {
                     <Button
                       size="sm"
                       disabled={actionLoading === u.uid}
-                      onClick={() => handleAction(u.uid, "approve")}
+                      onClick={() => handleAction(u, "approve")}
                     >
                       Approve
                     </Button>
@@ -133,7 +118,7 @@ export default function ApproveUsers() {
                       size="sm"
                       variant="destructive"
                       disabled={actionLoading === u.uid}
-                      onClick={() => handleAction(u.uid, "disapprove")}
+                      onClick={() => handleAction(u, "disapprove")}
                     >
                       Reject
                     </Button>
@@ -142,18 +127,6 @@ export default function ApproveUsers() {
               ))}
             </TableBody>
           </Table>
-        )}
-
-        {pageToken && (
-          <div className="flex justify-center mt-4">
-            <Button
-              onClick={() => fetchUsers()}
-              disabled={fetching}
-              variant="outline"
-            >
-              {fetching ? "Loading..." : "Load more"}
-            </Button>
-          </div>
         )}
       </CardContent>
     </Card>

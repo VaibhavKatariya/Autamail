@@ -12,8 +12,9 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
+import { useUsersData } from "@/context/UsersDataContext";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -25,58 +26,52 @@ import {
 } from "@/components/ui/alert-dialog";
 
 export default function UsersList() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
 
-  const [users, setUsers] = useState([]);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
-  const [loading, setLoading] = useState(false);
+  const {
+    users,
+    setUsers,
+    fetchAllOnce,
+    loading,
+  } = useUsersData();
+
   const [search, setSearch] = useState("");
-
   const [confirmUser, setConfirmUser] = useState(null);
 
+  // 🔹 Fetch ONCE from shared cache
   useEffect(() => {
     if (!isAdmin) return;
-    fetchUsers(1);
-  }, [isAdmin]);
+    fetchAllOnce();
+  }, [isAdmin, fetchAllOnce]);
 
-  useEffect(() => {
-    const reload = () => fetchUsers(1);
-    window.addEventListener("users-updated", reload);
-    return () => window.removeEventListener("users-updated", reload);
-  }, []);
-
-  const fetchUsers = async (pageNo) => {
-    try {
-      setLoading(true);
-      const res = await fetch(`/api/users?page=${pageNo}`);
-      const data = await res.json();
-
-      if (!res.ok) throw new Error(data.message);
-
-      setUsers(pageNo === 1 ? data.users : [...users, ...data.users]);
-      setHasMore(data.hasMore);
-      setPage(pageNo);
-    } catch {
-      toast.error("Failed to load users");
-    } finally {
-      setLoading(false);
+  const handleRoleChange = async (targetUser, newRole) => {
+    // 🔒 prevent admin changing own role
+    if (targetUser.uid === user.uid) {
+      toast.error("You cannot change your own role");
+      return;
     }
-  };
 
-  const handleRoleChange = async (uid, role) => {
     try {
       const res = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "change-role", uid, role }),
+        body: JSON.stringify({
+          action: "change-role",
+          uid: targetUser.uid,
+          role: newRole,
+        }),
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
 
       toast.success("Role updated");
-      setUsers((u) => u.map((x) => (x.uid === uid ? { ...x, role } : x)));
+
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.uid === targetUser.uid ? { ...u, role: newRole } : u
+        )
+      );
     } catch {
       toast.error("Failed to update role");
     }
@@ -84,6 +79,13 @@ export default function UsersList() {
 
   const confirmDelete = async () => {
     if (!confirmUser) return;
+
+    // 🔒 prevent admin deleting self
+    if (confirmUser.uid === user.uid) {
+      toast.error("You cannot delete your own account");
+      setConfirmUser(null);
+      return;
+    }
 
     try {
       const res = await fetch("/api/users", {
@@ -99,7 +101,10 @@ export default function UsersList() {
       if (!res.ok) throw new Error(data.message);
 
       toast.success("User deleted");
-      setUsers((u) => u.filter((x) => x.uid !== confirmUser.uid));
+
+      setUsers((prev) =>
+        prev.filter((u) => u.uid !== confirmUser.uid)
+      );
     } catch {
       toast.error("Delete failed");
     } finally {
@@ -107,10 +112,10 @@ export default function UsersList() {
     }
   };
 
-  const filtered = users.filter((u) =>
-    [u.email, u.name, u.enrollment].some((f) =>
-      f?.toLowerCase().includes(search.toLowerCase()),
-    ),
+  const filteredUsers = users.filter((u) =>
+    [u.email, u.name, u.enrollment].some((field) =>
+      field?.toLowerCase().includes(search.toLowerCase())
+    )
   );
 
   return (
@@ -140,7 +145,7 @@ export default function UsersList() {
             </TableHeader>
 
             <TableBody>
-              {filtered.map((u) => (
+              {filteredUsers.map((u) => (
                 <TableRow key={u.uid}>
                   <TableCell>{u.email}</TableCell>
                   <TableCell>{u.name}</TableCell>
@@ -148,7 +153,10 @@ export default function UsersList() {
                   <TableCell>
                     <select
                       value={u.role}
-                      onChange={(e) => handleRoleChange(u.uid, e.target.value)}
+                      disabled={u.uid === user.uid}
+                      onChange={(e) =>
+                        handleRoleChange(u, e.target.value)
+                      }
                       className="bg-black border px-2 py-1"
                     >
                       <option value="user">User</option>
@@ -158,6 +166,7 @@ export default function UsersList() {
                   <TableCell>
                     <Button
                       variant="destructive"
+                      disabled={u.uid === user.uid}
                       onClick={() => setConfirmUser(u)}
                     >
                       Delete
@@ -168,19 +177,15 @@ export default function UsersList() {
             </TableBody>
           </Table>
 
-          {hasMore && (
-            <Button
-              className="mt-4 w-full"
-              disabled={loading}
-              onClick={() => fetchUsers(page + 1)}
-            >
-              {loading ? "Loading..." : "Load More"}
-            </Button>
+          {loading && (
+            <div className="text-center text-sm text-gray-400 mt-4">
+              Loading users…
+            </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Confirmation Dialog */}
+      {/* Delete confirmation */}
       <AlertDialog
         open={!!confirmUser}
         onOpenChange={() => setConfirmUser(null)}
@@ -190,8 +195,7 @@ export default function UsersList() {
             <AlertDialogTitle>Delete User</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to permanently delete{" "}
-              <b>{confirmUser?.email}</b>? This will remove access and cannot be
-              undone.
+              <b>{confirmUser?.email}</b>? This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
