@@ -1,6 +1,7 @@
 "use client";
 
 import { AppSidebar } from "@/components/sidebar";
+import ClientOnly from "@/components/ClientOnly";
 import SendEmailFormSkeleton from "@/components/skeletonUI/sendEmailForm";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -34,7 +35,7 @@ export default function DashboardLayout({ children }) {
   }, [user, role, loading, checkingAuth, router]);
 
   if (loading || checkingAuth) {
-    return <SendEmailFormSkeleton />;
+    return <ClientOnly><SendEmailFormSkeleton /></ClientOnly>;
   }
 
   // Prevent UI flash

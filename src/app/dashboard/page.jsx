@@ -1,6 +1,7 @@
 "use client";
 
 import SendEmailForm from "@/components/sendEmailForm";
+import ClientOnly from "@/components/ClientOnly";
 import SendEmailFormSkeleton from "@/components/skeletonUI/sendEmailForm";
 import { useAuth } from "@/context/AuthContext";
 
@@ -8,7 +9,7 @@ export default function DashboardPage() {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return <SendEmailFormSkeleton />;
+    return <ClientOnly><SendEmailFormSkeleton /></ClientOnly>;
   }
 
   return (
