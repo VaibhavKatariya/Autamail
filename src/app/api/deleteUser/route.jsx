@@ -2,6 +2,7 @@ import { admin, rtdbAdmin } from "@/utils/firebaseAdmin";
 import { NextResponse } from "next/server";
 
 export async function POST(req) {
+  console.log("Admin project:", admin.app().options.projectId);
   try {
     console.log("API Request received...");
 

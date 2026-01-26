@@ -10,44 +10,42 @@ const AuthContext = createContext(null);
 export const AuthProvider = ({ children }) => {
   const [firebaseUser, authLoading] = useAuthState(auth);
 
-  const [role, setRole] = useState(undefined); 
-  // undefined = not loaded yet
-  // null = loaded, but no role (pending)
-  // "user" | "admin" = approved
-
-  const [claimsLoaded, setClaimsLoaded] = useState(false);
+  const [role, setRole] = useState(undefined); // ⬅️ important
+  const [blocked, setBlocked] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
 
   useEffect(() => {
-    const loadClaims = async () => {
+    const run = async () => {
       if (!firebaseUser) {
         setRole(undefined);
-        setClaimsLoaded(true);
+        setBlocked(false);
+        setCheckingAuth(false);
         return;
       }
 
+      setBlocked(false);
+      
       try {
-        const tokenResult = await getIdTokenResult(firebaseUser, true);
-        setRole(tokenResult.claims.role ?? null);
-      } catch (err) {
-        console.error("Failed to load claims", err);
+        const token = await getIdTokenResult(firebaseUser);
+        setRole(token.claims.role ?? null); 
+      } catch {
         setRole(null);
       } finally {
-        setClaimsLoaded(true);
+        setCheckingAuth(false);
       }
     };
 
-    setClaimsLoaded(false);
-    loadClaims();
+    run();
   }, [firebaseUser]);
 
   return (
     <AuthContext.Provider
       value={{
         user: firebaseUser,
-        role,
+        role,                 
         isAdmin: role === "admin",
-        loading: authLoading || !claimsLoaded,
-        claimsLoaded,
+        blocked,
+        loading: authLoading || checkingAuth,
       }}
     >
       {children}
@@ -57,6 +55,8 @@ export const AuthProvider = ({ children }) => {
 
 export const useAuth = () => {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used inside AuthProvider");
+  if (!ctx) {
+    throw new Error("useAuth must be used inside AuthProvider");
+  }
   return ctx;
 };

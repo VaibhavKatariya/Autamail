@@ -2,13 +2,14 @@ import localFont from "next/font/local";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { Toaster } from "sonner";
-
+import ClientGuards from "@/components/ClientGuards";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
   variable: "--font-geist-sans",
   weight: "100 900",
 });
+
 const geistMono = localFont({
   src: "./fonts/GeistMonoVF.woff",
   variable: "--font-geist-mono",
@@ -17,9 +18,9 @@ const geistMono = localFont({
 
 export const metadata = {
   title: "Autamail",
-  description: "Why do things manually in 2 minutes when you can spend hours automating them? 😏",
+  description:
+    "Why do things manually in 2 minutes when you can spend hours automating them? 😏",
 };
-
 
 export default function RootLayout({ children }) {
   return (
@@ -34,7 +35,7 @@ export default function RootLayout({ children }) {
       >
         <Toaster richColors position="top-right" />
         <AuthProvider>
-          {children}
+          <ClientGuards>{children}</ClientGuards>
         </AuthProvider>
       </body>
     </html>

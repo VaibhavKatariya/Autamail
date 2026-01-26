@@ -1,188 +1,127 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogAction,
-} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/context/AuthContext";
-import AccessRequestFormSkeleton from "@/components/skeletonUI/requestAccessSkeleton";
+import { toast } from "sonner";
 
-export default function AccessRequestPage() {
-  const { user, role, loading, checkingAuth } = useAuth();
+export default function RequestAccessPage() {
+  const { user, role, loading } = useAuth();
   const router = useRouter();
 
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [enrollment, setEnrollment] = useState("");
-  const [emailError, setEmailError] = useState("");
-  const [enrollmentError, setEnrollmentError] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [showBlockedPopup, setShowBlockedPopup] = useState(false);
+  const [countdown, setCountdown] = useState(5);
+  const [processing, setProcessing] = useState(false);
 
-  const formRef = useRef(null);
-  const formId = "1gorhcyw1lG-opaLOTnSK3IgyzPNR9K-Q05B3TGsS4Jc";
-
-  // ✅ ALL redirects happen here
+  // Redirect rules
   useEffect(() => {
-    if (loading || checkingAuth) return;
+    if (loading) return;
+    if (!user) router.replace("/");
+    if (role) router.replace("/dashboard");
+  }, [user, role, loading, router]);
 
-    // Not logged in
-    if (!user) {
-      router.replace("/");
+  if (loading || !user || role) return null;
+
+  const email = user.email || "";
+  const isCollegeEmail = email.endsWith("@mail.jiit.ac.in");
+
+  const enrollment = email.split("@")[0]; // 9923xxxxx
+
+  const handleConfirm = async () => {
+    if (!isCollegeEmail) {
+      setShowBlockedPopup(true);
+      toast.error("Please use your @mail.jiit.ac.in email");
+
+      let seconds = 5;
+      const interval = setInterval(() => {
+        seconds -= 1;
+        setCountdown(seconds);
+        if (seconds === 0) clearInterval(interval);
+      }, 1000);
+
+      setTimeout(async () => {
+        try {
+          await fetch("/api/deleteUser", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email }),
+          });
+        } catch {}
+
+        router.replace("/");
+      }, 5000);
+
       return;
     }
 
-    // Already approved
-    if (role) {
-      router.replace("/dashboard");
-    }
-  }, [user, role, loading, checkingAuth, router]);
-
-  // ⏳ Loading state
-  if (loading || checkingAuth) {
-    return <AccessRequestFormSkeleton />;
-  }
-
-  // Prevent flash while redirecting
-  if (!user || role) {
-    return null;
-  }
-
-  const validateEmail = (value) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(value)) {
-      setEmailError("Please enter a valid email address.");
-      return false;
-    }
-    setEmailError("");
-    return true;
-  };
-
-  const validateEnrollment = (value) => {
-    const enrollmentRegex = /^\d{10}$/;
-    if (!enrollmentRegex.test(value)) {
-      setEnrollmentError("Enrollment number must be exactly 10 digits.");
-      return false;
-    }
-    setEnrollmentError("");
-    return true;
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!validateEmail(email) || !validateEnrollment(enrollment)) return;
-
+    // Valid college user → submit pending request
     try {
-      setIsSubmitting(true);
-      formRef.current.submit();
-      formRef.current.reset();
+      setProcessing(true);
+      const res = await fetch("/api/request-access", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          uid: user.uid,
+          email,
+          name: user.displayName || "",
+          enrollment,
+        }),
+      });
 
-      toast.success("Access request sent successfully");
-      setName("");
-      setEmail("");
-      setEnrollment("");
-      setDialogOpen(true);
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.message || "Request failed");
+        return;
+      }
+
+      toast.success("Access request submitted");
     } catch {
-      toast.error("Failed to submit request");
+      toast.error("Something went wrong");
     } finally {
-      setIsSubmitting(false);
+      setProcessing(false);
     }
   };
 
   return (
     <div className="flex justify-center items-center min-h-screen">
-      <Card className="w-full max-w-2xl">
+      <Card className="w-full max-w-lg">
         <CardHeader>
-          <CardTitle>Request Access</CardTitle>
-          <p className="text-sm text-gray-500">
-            You are logged in but not approved yet.
-          </p>
+          <CardTitle>Confirm your details</CardTitle>
         </CardHeader>
 
-        <CardContent>
-          <iframe name="iframe_form" style={{ display: "none" }} />
+        <CardContent className="space-y-4">
+          <p><b>Name:</b> {user.displayName}</p>
+          <p><b>Email:</b> {email}</p>
+          <p><b>Enrollment:</b> {enrollment}</p>
 
-          <form
-            ref={formRef}
-            action={`https://docs.google.com/forms/d/${formId}/formResponse`}
-            method="POST"
-            target="iframe_form"
-            onSubmit={handleSubmit}
-            className="space-y-4"
+          <Button
+            className="w-full"
+            onClick={handleConfirm}
+            disabled={processing}
           >
-            <div>
-              <Label>Full Name</Label>
-              <Input
-                name="entry.2005620554"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-              />
-            </div>
-
-            <div>
-              <Label>Email</Label>
-              <Input
-                name="entry.1045781291"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                onBlur={() => validateEmail(email)}
-                required
-              />
-              {emailError && (
-                <p className="text-red-500 text-sm">{emailError}</p>
-              )}
-            </div>
-
-            <div>
-              <Label>Enrollment Number</Label>
-              <Input
-                name="entry.1065046570"
-                value={enrollment}
-                onChange={(e) => setEnrollment(e.target.value)}
-                onBlur={() => validateEnrollment(enrollment)}
-                required
-              />
-              {enrollmentError && (
-                <p className="text-red-500 text-sm">{enrollmentError}</p>
-              )}
-            </div>
-
-            <Button disabled={isSubmitting} className="w-full">
-              {isSubmitting ? "Submitting..." : "Request Access"}
-            </Button>
-          </form>
+            {processing ? "Submitting..." : "Confirm Details"}
+          </Button>
         </CardContent>
       </Card>
 
-      <AlertDialog open={dialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Request Submitted</AlertDialogTitle>
-            <AlertDialogDescription>
-              Your request is under review. You’ll be notified once approved.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setDialogOpen(false)}>
-              OK
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {showBlockedPopup && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-zinc-900 p-6 rounded-lg text-center space-y-3">
+            <h2 className="text-xl font-bold text-red-500">
+              Invalid Email
+            </h2>
+            <p>
+              You must use your <b>@mail.jiit.ac.in</b> account.
+            </p>
+            <p className="text-sm text-gray-400">
+              Redirecting in {countdown} seconds…
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
