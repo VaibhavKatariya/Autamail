@@ -7,6 +7,9 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import BlockedUserOverlay from "@/components/BlockedUserOverlay";
+import AccessRequestFormSkeleton from "@/components/skeletonUI/requestAccessSkeleton";
+import { auth } from "@/lib/firebase";
+import { signOut } from "firebase/auth";
 
 export default function RequestAccessPage() {
   const { user, role, loading } = useAuth();
@@ -14,6 +17,7 @@ export default function RequestAccessPage() {
 
   const [processing, setProcessing] = useState(false);
   const [showBlockedOverlay, setShowBlockedOverlay] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   // Redirect rules
   useEffect(() => {
@@ -29,21 +33,23 @@ export default function RequestAccessPage() {
     }
   }, [user, role, loading, router]);
 
-  if (loading || !user || role) return null;
+  if (loading) {
+    return <AccessRequestFormSkeleton />;
+  }
+
+  if (!user || role) return null;
 
   const email = user.email || "";
   const isCollegeEmail = email.endsWith("@mail.jiit.ac.in");
   const enrollment = email.split("@")[0];
 
   const handleConfirm = async () => {
-    // 🚫 Invalid email
     if (!isCollegeEmail) {
       toast.error("Please use your @mail.jiit.ac.in email");
       setShowBlockedOverlay(true);
       return;
     }
 
-    // ✅ Valid college email
     try {
       setProcessing(true);
 
@@ -66,6 +72,7 @@ export default function RequestAccessPage() {
       }
 
       toast.success("Access request submitted successfully");
+      setSubmitted(true);
     } catch {
       toast.error("Something went wrong");
     } finally {
@@ -73,26 +80,47 @@ export default function RequestAccessPage() {
     }
   };
 
+  const handleOk = async () => {
+    await signOut(auth);    
+  };
+
   return (
     <>
       <div className="flex justify-center items-center min-h-screen">
         <Card className="w-full max-w-lg">
           <CardHeader>
-            <CardTitle>Confirm your details</CardTitle>
+            <CardTitle>
+              {submitted ? "Request Submitted" : "Confirm your details"}
+            </CardTitle>
           </CardHeader>
 
           <CardContent className="space-y-4">
-            <p><b>Name:</b> {user.displayName}</p>
-            <p><b>Email:</b> {email}</p>
-            <p><b>Enrollment:</b> {enrollment}</p>
+            {!submitted ? (
+              <>
+                <p><b>Name:</b> {user.displayName}</p>
+                <p><b>Email:</b> {email}</p>
+                <p><b>Enrollment:</b> {enrollment}</p>
 
-            <Button
-              className="w-full"
-              onClick={handleConfirm}
-              disabled={processing}
-            >
-              {processing ? "Submitting..." : "Confirm Details"}
-            </Button>
+                <Button
+                  className="w-full"
+                  onClick={handleConfirm}
+                  disabled={processing}
+                >
+                  {processing ? "Submitting..." : "Confirm Details"}
+                </Button>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-zinc-400">
+                  Your request has been sent to the admins.
+                  You’ll get access once it’s approved.
+                </p>
+
+                <Button className="w-full" onClick={handleOk}>
+                  OK
+                </Button>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
