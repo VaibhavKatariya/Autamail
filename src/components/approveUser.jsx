@@ -1,292 +1,160 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { rtdb } from "@/lib/firebase";
-import { ref, onValue, set, get, remove } from "firebase/database";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import formData from "form-data";
-import Mailgun from "mailgun.js";
+import { toast } from "sonner";
 
 export default function ApproveUsers() {
-  const { user, loading } = useAuth();
-  const router = useRouter();
-  const [members, setMembers] = useState([]);
+  const { isAdmin, loading } = useAuth();
+
   const [users, setUsers] = useState([]);
-  const [dialog, setDialog] = useState({ open: false, message: "", onConfirm: null });
-  const [disapproveDialog, setDisapproveDialog] = useState({
-    open: false,
-    member: null,
-    reason: "",
-    isAll: false,
-    onConfirm: null
-  });
+  const [pageToken, setPageToken] = useState(null);
+  const [fetching, setFetching] = useState(false);
+  const [actionLoading, setActionLoading] = useState(null);
+
+  // 🔒 Admin guard
+  useEffect(() => {
+    if (!loading && !isAdmin) {
+      toast.error("Unauthorized");
+    }
+  }, [isAdmin, loading]);
+
+  // 📥 Fetch pending users
+  const fetchUsers = async (reset = false) => {
+    try {
+      setFetching(true);
+
+      const url = reset
+        ? "/api/manageUsers"
+        : `/api/manageUsers?pageToken=${pageToken}`;
+
+      const res = await fetch(url);
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.message || "Failed to fetch users");
+        return;
+      }
+
+      setUsers((prev) =>
+        reset ? data.users : [...prev, ...data.users]
+      );
+      setPageToken(data.nextPageToken || null);
+    } catch {
+      toast.error("Something went wrong");
+    } finally {
+      setFetching(false);
+    }
+  };
 
   useEffect(() => {
-    if (user) {
-      const membersRef = ref(rtdb, "members");
-      const usersRef = ref(rtdb, "users");
+    if (isAdmin) fetchUsers(true);
+  }, [isAdmin]);
 
-      onValue(membersRef, (snapshot) => {
-        setMembers(snapshot.val() ? Object.entries(snapshot.val()).map(([id, data]) => ({ id, ...data })) : []);
+  // ✅ Approve / ❌ Disapprove
+  const handleAction = async (uid, action) => {
+    try {
+      setActionLoading(uid);
+
+      const res = await fetch("/api/manageUsers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, uid }),
       });
 
-      onValue(usersRef, (snapshot) => {
-        setUsers(snapshot.val() ? snapshot.val() : []);
-      });
-    }
-  }, [user]);
+      const data = await res.json();
 
-  const sendEmail = async (email, name, isApproval, reason = "") => {
-    try {
-      const mailgun = new Mailgun(formData);
-      const mg = mailgun.client({
-        username: "api",
-        key: process.env.NEXT_PUBLIC_MAILGUN_API_KEY,
-        url: "https://api.eu.mailgun.net",
-      });
-
-
-      const message = isApproval
-        ? {
-          from: "GDG JIIT Admin <admin@gdg-jiit.com>",
-          to: [email],
-          subject: "Access Approved: GDG JIIT Admin Portal",
-          text: `Hello ${name},\n\nYou have been approved to access the GDG JIIT mailing site. You can now log in and start sending email at:\n\n🔗 [GDG JIIT Mail Portal](https://mailing.gdg-jiit.com/)\n\nBest regards,\n${user?.displayName}`
-        }
-        : {
-          from: "GDG JIIT Admin <admin@gdg-jiit.com>",
-          to: [email],
-          subject: "Access Disapproved: GDG JIIT Admin Portal",
-          text: `Hello ${name},\n\nYour request to access the GDG JIIT mailing Portal has been disapproved${reason.length > 0 ? " for the following reason:\n\n" + reason : "."}\n\nIf you have any questions, please contact the admin.\n\nBest regards,\n${user?.displayName}`
-        };
-
-      const response = await mg.messages.create(process.env.NEXT_PUBLIC_MAILGUN_DOMAIN, message);
-    } catch (error) {
-      console.error("Error sending email:", error?.response?.body || error);
-    }
-  };
-
-  const approveUser = async (member) => {
-    try {
-      const usersRef = ref(rtdb, "users");
-      const snapshot = await get(usersRef);
-      let usersList = snapshot.exists() ? snapshot.val() : [];
-
-      if (usersList.some((user) => user.email === member.email)) {
-        setDialog({
-          open: true,
-          message: "User already approved.",
-          onConfirm: () => setDialog({ open: false }),
-        });
-      } else {
-        usersList.push({ email: member.email, name: member.name , rollNumber: member.rollNumber, role: "member" });
-        await set(usersRef, usersList);
-        await remove(ref(rtdb, `members/${member.id}`));
-        setMembers(members.filter((m) => m.id !== member.id));
-        await sendEmail(member.email, member.name, true);
-      }
-    } catch (error) {
-      console.error("Error approving user:", error);
-    }
-  };
-
-  const approveAllUsers = async () => {
-    try {
-      const usersRef = ref(rtdb, "users");
-      const snapshot = await get(usersRef);
-      let usersList = snapshot.exists() ? snapshot.val() : [];
-
-      for (const member of members) {
-        if (!usersList.some((user) => user.email === member.email)) {
-          usersList.push({ email: member.email, name: member.name , rollNumber: member.rollNumber, role: "member" });
-          await sendEmail(member.email, member.name, true);
-        }
+      if (!res.ok) {
+        toast.error(data.message || "Action failed");
+        return;
       }
 
-      await set(usersRef, usersList);
-      await remove(ref(rtdb, "members"));
-      setMembers([]);
-
-      setDialog({
-        open: true,
-        message: "All users have been approved.",
-        onConfirm: () => setDialog({ open: false }),
-      });
-    } catch (error) {
-      console.error("Error approving all users:", error);
-      setDialog({
-        open: true,
-        message: "Failed to approve all users. Please try again.",
-        onConfirm: () => setDialog({ open: false }),
-      });
+      toast.success(data.message);
+      setUsers((prev) => prev.filter((u) => u.uid !== uid));
+    } catch {
+      toast.error("Action failed");
+    } finally {
+      setActionLoading(null);
     }
   };
 
-  const disapproveUser = (member) => {
-    setDisapproveDialog({
-      open: true,
-      member,
-      reason: "",
-      isAll: false,
-      onConfirm: async () => {
-        try {
-          setDisapproveDialog((prev) => {
-            const reasonToSend = prev.reason;
-            remove(ref(rtdb, `members/${member.id}`));
-            setMembers((current) => current.filter((m) => m.id !== member.id));
-            sendEmail(member.email, member.name, false, reasonToSend);
-            setDialog({
-              open: true,
-              message: `User ${member.name} has been disapproved.`,
-              onConfirm: () => setDialog({ open: false }),
-            });
-            return { open: false, member: null, reason: "", isAll: false }; // Reset state
-          });
-        } catch (error) {
-          console.error("Error disapproving user:", error);
-        }
-      },
-    });
-  };
-
-  const disapproveAllUsers = () => {
-    setDisapproveDialog({
-      open: true,
-      member: null,
-      reason: "",
-      isAll: true,
-      onConfirm: async () => {
-        try {
-          setDisapproveDialog((prev) => {
-            const reasonToSend = prev.reason;
-            for (const member of members) {
-              sendEmail(member.email, member.name, false, reasonToSend);
-            }
-            remove(ref(rtdb, "members"));
-            setMembers([]);
-            setDialog({
-              open: true,
-              message: "All users have been disapproved.",
-              onConfirm: () => setDialog({ open: false }),
-            });
-            return { open: false, member: null, reason: "", isAll: false };
-          });
-        } catch (error) {
-          console.error("Error disapproving all users:", error);
-        }
-      },
-    });
-  };
-
-  if (loading) {
-    return <div className="flex justify-center items-center h-screen">Loading...</div>;
-  }
-
-  if (!user) {
-    router.push("/");
-    return <div className="flex justify-center items-center h-screen">Redirecting...</div>;
-  }
+  if (loading) return null;
 
   return (
-    <div className="flex flex-col items-center p-4 space-y-4">
-      <Card className="w-full max-w-4xl">
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle>Pending Approvals</CardTitle>
-            <div className="flex space-x-2">
-              <Button onClick={approveAllUsers} disabled={members.length === 0}>Approve All</Button>
-              <Button variant="destructive" onClick={disapproveAllUsers} disabled={members.length === 0}>Disapprove All</Button>
-            </div>
+    <Card className="w-full max-w-5xl">
+      <CardHeader>
+        <CardTitle>Pending Access Requests</CardTitle>
+      </CardHeader>
+
+      <CardContent>
+        {users.length === 0 && !fetching ? (
+          <p className="text-center text-muted-foreground">
+            No pending requests
+          </p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>#</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Enrollment</TableHead>
+                <TableHead>Action</TableHead>
+              </TableRow>
+            </TableHeader>
+
+            <TableBody>
+              {users.map((u, i) => (
+                <TableRow key={u.uid}>
+                  <TableCell>{i + 1}</TableCell>
+                  <TableCell>{u.name}</TableCell>
+                  <TableCell>{u.email}</TableCell>
+                  <TableCell>{u.enrollment}</TableCell>
+                  <TableCell className="flex gap-2">
+                    <Button
+                      size="sm"
+                      disabled={actionLoading === u.uid}
+                      onClick={() => handleAction(u.uid, "approve")}
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      disabled={actionLoading === u.uid}
+                      onClick={() => handleAction(u.uid, "disapprove")}
+                    >
+                      Reject
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+
+        {pageToken && (
+          <div className="flex justify-center mt-4">
+            <Button
+              onClick={() => fetchUsers()}
+              disabled={fetching}
+              variant="outline"
+            >
+              {fetching ? "Loading..." : "Load more"}
+            </Button>
           </div>
-        </CardHeader>
-        <CardContent>
-          {members.length === 0 ? (
-            <div className="text-center text-gray-500">No users pending approval.</div>
-          ) : (
-            <div className="max-h-[400px] overflow-y-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Index</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Enrollment No.</TableHead>
-                    <TableHead>Time</TableHead>
-                    <TableHead>Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {members.map((member, index) => (
-                    <TableRow key={member.id}>
-                      <TableCell>{index + 1}</TableCell>
-                      <TableCell>{member.name}</TableCell>
-                      <TableCell>{member.email}</TableCell>
-                      <TableCell>{member.rollNumber}</TableCell>
-                      <TableCell>{member.timestamp}</TableCell>
-                      <TableCell className="flex space-x-2">
-                        <Button onClick={() => approveUser(member)}>Approve</Button>
-                        <Button variant="destructive" onClick={() => disapproveUser(member)}>Disapprove</Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Notification Dialog */}
-      {dialog.open && (
-        <Dialog open={dialog.open} onOpenChange={(open) => setDialog({ ...dialog, open })}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Notification</DialogTitle>
-            </DialogHeader>
-            <DialogDescription>{dialog.message}</DialogDescription>
-            <DialogFooter>
-              <Button onClick={dialog.onConfirm}>OK</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {/* Disapprove Reason Dialog */}
-      {disapproveDialog.open && (
-        <Dialog
-          open={disapproveDialog.open}
-          onOpenChange={(open) => setDisapproveDialog({ ...disapproveDialog, open })}
-        >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Disapprove {disapproveDialog.isAll ? "All Users" : "User"}</DialogTitle>
-            </DialogHeader>
-            <DialogDescription>
-              Please provide a reason for disapproval (optional):
-            </DialogDescription>
-            <Input
-              value={disapproveDialog.reason}
-              onChange={(e) => setDisapproveDialog({ ...disapproveDialog, reason: e.target.value })}
-              placeholder="Enter reason for disapproval"
-            />
-            <DialogFooter className="mt-4">
-              <Button
-                variant="outline"
-                onClick={() => setDisapproveDialog({ open: false, member: null, reason: "", isAll: false })}
-              >
-                Cancel
-              </Button>
-              <Button onClick={disapproveDialog.onConfirm}>Confirm</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
-    </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
