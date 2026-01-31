@@ -1,6 +1,6 @@
 "use client";
 
-import SendEmailForm from "@/components/sendEmailForm";
+import SendEmailForm from "@/components/QueueEmailForm";
 import ClientOnly from "@/components/ClientOnly";
 import SendEmailFormSkeleton from "@/components/skeletonUI/sendEmailForm";
 import { useAuth } from "@/context/AuthContext";
