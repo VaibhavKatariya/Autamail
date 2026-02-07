@@ -18,7 +18,11 @@ import {
 import { NavUser } from "./nav-user";
 import { useAuth } from "@/context/AuthContext";
 
-export function AppSidebar({ authUser = { displayName: "", email: "", photo: "" }, onLogout, ...props }) {
+export function AppSidebar({
+  authUser = { displayName: "", email: "", photo: "" },
+  onLogout,
+  ...props
+}) {
   const router = useRouter();
   const { user, loading, isAdmin, checkingAuth } = useAuth();
 
@@ -64,16 +68,25 @@ export function AppSidebar({ authUser = { displayName: "", email: "", photo: "" 
   };
 
   if (isAdmin) {
-    data.navMain[0].items.push({
-      title: "Manage Users",
-      url: "/dashboard/manageUsers",
-    });
+    data.navMain[0].items.push(
+      {
+        title: "Approve Email",
+        url: "/dashboard/approveEmail",
+      },
+      {
+        title: "Manage Users",
+        url: "/dashboard/manageUsers",
+      },
+    );
   }
 
   return (
     <Sidebar {...props}>
       <SidebarHeader>
-        <VersionSwitcher versions={data.versions} defaultVersion={data.versions[0]} />
+        <VersionSwitcher
+          versions={data.versions}
+          defaultVersion={data.versions[0]}
+        />
       </SidebarHeader>
       <SidebarContent>
         {data.navMain.map((item) => (
@@ -85,9 +98,13 @@ export function AppSidebar({ authUser = { displayName: "", email: "", photo: "" 
                   <SidebarMenuItem key={navItem.title}>
                     <SidebarMenuButton asChild>
                       {navItem.title === "Need Help?" ? (
-                        <button onClick={handleNeedHelp}>{navItem.title}</button>
+                        <button onClick={handleNeedHelp}>
+                          {navItem.title}
+                        </button>
                       ) : (
-                        <button onClick={() => router.push(navItem.url)}>{navItem.title}</button>
+                        <button onClick={() => router.push(navItem.url)}>
+                          {navItem.title}
+                        </button>
                       )}
                     </SidebarMenuButton>
                   </SidebarMenuItem>

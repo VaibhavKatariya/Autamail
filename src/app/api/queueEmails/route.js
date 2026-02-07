@@ -20,8 +20,6 @@ export async function POST(req) {
   try {
     const { entries, template, fromEmail, uid } = await req.json();
 
-    console.log(entries, uid, template, fromEmail);
-
     if (!uid || !Array.isArray(entries) || entries.length === 0) {
       return NextResponse.json(
         { message: "Invalid payload" },

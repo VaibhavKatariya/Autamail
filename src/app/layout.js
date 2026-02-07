@@ -1,6 +1,8 @@
 import localFont from "next/font/local";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
+import { UsersDataProvider } from "@/context/UsersDataContext";
+import { QueuedEmailsProvider } from "@/context/QueuedEmailsContext";
 import { Toaster } from "sonner";
 
 const geistSans = localFont({
@@ -33,9 +35,15 @@ export default function RootLayout({ children }) {
         className={`${geistSans.variable} dark text-white ${geistMono.variable} antialiased`}
       >
         <Toaster richColors position="top-right" />
+
         <AuthProvider>
-          {children}
+          <UsersDataProvider>
+            <QueuedEmailsProvider>
+              {children}
+            </QueuedEmailsProvider>
+          </UsersDataProvider>
         </AuthProvider>
+
       </body>
     </html>
   );
