@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import AdvancedSearch from "@/components/AdvanceEmailLog";
 import EmailLogs from "@/components/EmailLogs";
-import QueuedEmails from "@/components/QueuedEmails";
 import LogsLoading from "@/components/skeletonUI/logsLoading";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import EmailStatsChart from "@/components/LogsCharts";
@@ -41,10 +40,6 @@ export default function Page() {
 
           <TabsContent value="normal" className="h-[calc(100vh-20vh)] overflow-y-auto">
             <EmailLogs collectionPath={collectionPath} />
-          </TabsContent>
-
-          <TabsContent value="queued" className="h-[calc(100vh-20vh)] overflow-y-auto">
-            <QueuedEmails />
           </TabsContent>
 
           <TabsContent value="advanced" className="h-[calc(100vh-20vh)] overflow-y-auto">
