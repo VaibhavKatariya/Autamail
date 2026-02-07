@@ -55,7 +55,7 @@ export default function DashboardLayout({ children }) {
       </div>
     );
   }
-
+  
   return (
     <div className="dark text-white">
       <SidebarProvider>
