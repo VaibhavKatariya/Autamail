@@ -3,6 +3,7 @@ import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { UsersDataProvider } from "@/context/UsersDataContext";
 import { QueuedEmailsProvider } from "@/context/QueuedEmailsContext";
+import { EmailLogsProvider  } from "@/context/EmailLogsContext";
 import { Toaster } from "sonner";
 
 const geistSans = localFont({
@@ -39,7 +40,9 @@ export default function RootLayout({ children }) {
         <AuthProvider>
           <UsersDataProvider>
             <QueuedEmailsProvider>
-              {children}
+              <EmailLogsProvider>
+                {children}
+              </EmailLogsProvider>
             </QueuedEmailsProvider>
           </UsersDataProvider>
         </AuthProvider>

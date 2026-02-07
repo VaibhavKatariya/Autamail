@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -14,51 +14,20 @@ import { Button } from "@/components/ui/button";
 import { CopyIcon } from "lucide-react";
 import { toast } from "sonner";
 import Loading from "@/components/skeletonUI/logsLoading";
-import { useAuth } from "@/context/AuthContext";
+import { useEmailLogs } from "@/context/EmailLogsContext";
 
 export default function EmailLogs({ userData, onBack }) {
-  const { user } = useAuth();
-
-  const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [cursor, setCursor] = useState(null);
-
-  const fetchLogs = async (reset = false) => {
-    if (!user) return;
-
-    try {
-      setLoading(true);
-
-      const token = await user.getIdToken();
-
-      const url =
-        reset || !cursor
-          ? "/api/emailLogs"
-          : `/api/emailLogs?cursor=${cursor}`;
-
-      const res = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
-
-      setLogs(reset ? data.emails : (prev) => [...prev, ...data.emails]);
-      setCursor(data.nextCursor || null);
-    } catch (err) {
-      toast.error(err.message || "Failed to load email logs");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { logs, loading, cursor, initialized, fetchLogs, refreshLogs, loadMore } = useEmailLogs();
 
   useEffect(() => {
-    fetchLogs(true);
-  }, [user]);
+    // Only fetch if not already initialized
+    if (!initialized) {
+      fetchLogs(true);
+    }
+  }, [initialized, fetchLogs]);
 
-  if (loading) return <Loading />;
+  if (loading && !initialized) return <Loading />;
+
   return (
     <div className="flex justify-center w-full p-4">
       <Card className="w-full max-w-5xl">
@@ -73,7 +42,9 @@ export default function EmailLogs({ userData, onBack }) {
                 Back
               </Button>
             )}
-            <Button onClick={() => fetchLogs(true)}>Refresh</Button>
+            <Button onClick={refreshLogs} disabled={loading}>
+              Refresh
+            </Button>
           </div>
         </CardHeader>
 
@@ -129,9 +100,10 @@ export default function EmailLogs({ userData, onBack }) {
                 <Button
                   className="mt-4 w-full"
                   variant="outline"
-                  onClick={() => fetchLogs()}
+                  onClick={loadMore}
+                  disabled={loading}
                 >
-                  Load more
+                  {loading ? "Loading..." : "Load more"}
                 </Button>
               )}
             </>
