@@ -1,46 +1,47 @@
+"use client";
+
 import React from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Tabs, TabsContent } from "@/components/ui/tabs";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+} from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
 
 export default function SendEmailFormSkeleton() {
   return (
     <div className="flex items-center justify-center w-full h-[calc(100vh-10vh)] p-4">
-      <Card className="w-full max-w-xl mx-auto">
-        <CardHeader>
-          <CardTitle className="text-center">
-            <Skeleton className="h-6 w-48 mx-auto" />
-          </CardTitle>
-          <CardDescription className="text-center">
-            <Skeleton className="h-4 w-64 mx-auto" />
-          </CardDescription>
+      <Card className="w-full max-w-lg">
+        {/* Header */}
+        <CardHeader className="space-y-2">
+          <Skeleton className="h-6 w-40" />
+          <Skeleton className="h-4 w-80" />
         </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="bulk" className="w-full">
-            <TabsContent value="bulk">
-              <div className="space-y-4 max-h-[400px] overflow-y-auto">
-                {[...Array(3)].map((_, index) => (
-                  <div key={index} className="space-y-2 border p-4 rounded-lg flex flex-col gap-2">
-                    <Skeleton className="h-4 w-24" />
-                    <Skeleton className="h-10 w-full" />
-                    <Skeleton className="h-4 w-24" />
-                    <Skeleton className="h-10 w-full" />
-                  </div>
-                ))}
-                <Button disabled className="w-full mt-2">
-                  <Skeleton className="h-10 w-full" />
-                </Button>
-                <div className="mt-1">
-                  <Skeleton className="h-4 w-32" />
-                </div>
-                <Skeleton className="h-10 w-full" />
-                <Button disabled className="w-full mt-2">
-                  <Skeleton className="h-10 w-full" />
-                </Button>
-              </div>
-            </TabsContent>
-          </Tabs>
+
+        {/* Content */}
+        <CardContent className="space-y-6">
+          {/* Upload CSV */}
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-10 w-full rounded-md" />
+          </div>
+
+          {/* OR */}
+          <div className="flex justify-center">
+            <Skeleton className="h-4 w-10" />
+          </div>
+
+          {/* Add Recipient */}
+          <Skeleton className="h-10 w-36 rounded-md" />
+
+          {/* Email Template */}
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-10 w-full rounded-md" />
+          </div>
+
+          {/* Queue Button */}
+          <Skeleton className="h-10 w-40 rounded-md opacity-60" />
         </CardContent>
       </Card>
     </div>

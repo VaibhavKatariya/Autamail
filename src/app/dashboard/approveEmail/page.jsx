@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useQueuedEmails } from "@/context/QueuedEmailsContext";
+import ApproveEmailsSkeleton from "@/components/skeletonUI/approveEmailsSkeleton";
 
 export default function ApproveEmailsPage() {
   const { emails, cursor, loading, fetchQueuedEmails, removeEmails } =
@@ -20,13 +21,13 @@ export default function ApproveEmailsPage() {
 
   const [actionLoading, setActionLoading] = useState(false);
 
-const hasFetchedRef = useRef(false);
+  const hasFetchedRef = useRef(false);
 
   useEffect(() => {
     if (hasFetchedRef.current) return;
     hasFetchedRef.current = true;
 
-    fetchQueuedEmails(); // ❌ no reset here
+    fetchQueuedEmails();
   }, [fetchQueuedEmails]);
 
   const handleBulkAction = async (action, ids) => {
@@ -46,7 +47,7 @@ const hasFetchedRef = useRef(false);
       if (!res.ok) throw new Error(data.message);
 
       toast.success(data.message);
-      removeEmails(ids); // ✅ Update context state
+      removeEmails(ids);
     } catch (err) {
       toast.error(err.message || "Action failed");
     } finally {
@@ -90,7 +91,9 @@ const hasFetchedRef = useRef(false);
         </CardHeader>
 
         <CardContent>
-          {emails.length === 0 && !loading ? (
+          {loading && emails.length === 0 ? (
+            <ApproveEmailsSkeleton />
+          ) : emails.length === 0 ? (
             <p className="text-center text-muted-foreground">
               No queued emails pending approval
             </p>
